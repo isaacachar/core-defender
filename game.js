@@ -445,8 +445,15 @@ let canvasWidth = 0;
 let canvasHeight = 0;
 
 function resizeCanvas() {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+    // Use clientWidth/Height as fallback for mobile browsers
+    const width = window.innerWidth || document.documentElement.clientWidth || canvas.parentElement.clientWidth || 400;
+    const height = window.innerHeight || document.documentElement.clientHeight || canvas.parentElement.clientHeight || 700;
+
+    // Ensure we have valid dimensions
+    if (width <= 0 || height <= 0) {
+        setTimeout(resizeCanvas, 50);
+        return;
+    }
 
     // Set canvas to full screen (no DPR scaling for simplicity/performance)
     canvas.width = width;
@@ -459,11 +466,21 @@ function resizeCanvas() {
 
     // Calculate game scale - game world fits in screen
     const minDim = Math.min(width, height);
-    gameScale = minDim / 700;
+    gameScale = Math.max(0.1, minDim / 700); // Ensure scale is never 0
     gameOffsetX = width / 2;
     gameOffsetY = height / 2;
 }
-resizeCanvas();
+
+// Initial resize with delay for mobile browsers
+if (document.readyState === 'complete') {
+    resizeCanvas();
+} else {
+    window.addEventListener('load', resizeCanvas);
+}
+// Also try immediately in case DOM is ready
+setTimeout(resizeCanvas, 0);
+setTimeout(resizeCanvas, 100);
+
 window.addEventListener('resize', resizeCanvas);
 window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 100));
 
@@ -1579,8 +1596,16 @@ function gameLoop(currentTime) {
         updateDamageNumbers(dt);
     }
 
-    // Draw
-    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    // Draw - ensure canvas is ready
+    if (canvasWidth <= 0 || canvasHeight <= 0) {
+        resizeCanvas();
+        requestAnimationFrame(gameLoop);
+        return;
+    }
+
+    // Reset transform to identity before clearing (fixes mobile Safari issues)
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Center and scale the view
     ctx.save();
