@@ -1,5 +1,5 @@
 // Service Worker for Core Defender
-const CACHE_NAME = 'core-defender-v7';
+const CACHE_NAME = 'core-defender-v8';
 const ASSETS = [
     '/',
     '/index.html',
