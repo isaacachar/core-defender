@@ -710,6 +710,136 @@
             transform: scale(0.96);
         }
 
+        /* Title Screen */
+        #titleScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(ellipse at center, rgba(0, 40, 60, 0.9) 0%, rgba(10, 10, 20, 0.98) 70%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        #titleScreen.hidden {
+            display: none;
+        }
+
+        .titleLogo {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .titleMain {
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(32px, 10vw, 56px);
+            font-weight: 900;
+            color: var(--cyan);
+            text-shadow:
+                0 0 10px var(--cyan),
+                0 0 20px var(--cyan),
+                0 0 40px rgba(0, 240, 255, 0.5),
+                0 0 80px rgba(0, 240, 255, 0.3);
+            letter-spacing: 4px;
+            animation: titlePulse 2s ease-in-out infinite;
+        }
+
+        .titleSub {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: clamp(12px, 3vw, 16px);
+            color: var(--magenta);
+            text-shadow: var(--glow-magenta);
+            letter-spacing: 8px;
+            margin-top: 8px;
+            opacity: 0.9;
+        }
+
+        @keyframes titlePulse {
+            0%, 100% {
+                text-shadow:
+                    0 0 10px var(--cyan),
+                    0 0 20px var(--cyan),
+                    0 0 40px rgba(0, 240, 255, 0.5),
+                    0 0 80px rgba(0, 240, 255, 0.3);
+            }
+            50% {
+                text-shadow:
+                    0 0 15px var(--cyan),
+                    0 0 30px var(--cyan),
+                    0 0 60px rgba(0, 240, 255, 0.6),
+                    0 0 100px rgba(0, 240, 255, 0.4);
+            }
+        }
+
+        #titleStats {
+            text-align: center;
+            margin-bottom: 40px;
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        .titleStat {
+            color: var(--text-dim);
+            font-size: 14px;
+            margin: 8px 0;
+        }
+
+        .titleStatValue {
+            color: var(--yellow);
+            text-shadow: var(--glow-yellow);
+        }
+
+        #playBtn {
+            background: linear-gradient(180deg, rgba(0, 60, 80, 0.9) 0%, rgba(0, 30, 50, 0.95) 100%);
+            border: 2px solid var(--cyan);
+            color: var(--cyan);
+            padding: 18px 50px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: 4px;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.2s;
+            box-shadow: var(--glow-cyan);
+        }
+
+        #playBtn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 240, 255, 0.3), transparent);
+            animation: btnShimmer 2s infinite;
+        }
+
+        @keyframes btnShimmer {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+
+        #playBtn:active {
+            transform: scale(0.95);
+            background: rgba(0, 240, 255, 0.2);
+        }
+
+        .titleVersion {
+            position: absolute;
+            bottom: 20px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            color: var(--text-dim);
+            opacity: 0.5;
+        }
+
         /* Scrollbar styling */
         .panel::-webkit-scrollbar {
             width: 4px;
@@ -731,6 +861,20 @@
     </style>
 </head>
 <body>
+    <!-- Title Screen -->
+    <div id="titleScreen">
+        <div class="titleLogo">
+            <div class="titleMain">CORE DEFENDER</div>
+            <div class="titleSub">TOWER DEFENSE</div>
+        </div>
+        <div id="titleStats">
+            <div class="titleStat">HIGH SCORE: <span class="titleStatValue" id="titleHighScore">Wave 0</span></div>
+            <div class="titleStat">TOTAL KILLS: <span class="titleStatValue" id="titleKills">0</span></div>
+        </div>
+        <button id="playBtn">PLAY</button>
+        <div class="titleVersion">v1.0</div>
+    </div>
+
     <div id="gameContainer">
         <canvas id="gameCanvas"></canvas>
         <div id="ui">

@@ -507,6 +507,7 @@ function getSpawnRadius() {
 // GAME STATE
 // ==================
 const game = {
+    state: 'title', // 'title', 'playing', 'gameover'
     money: 0,
     currentWave: 0,
     enemiesAlive: 0,
@@ -1719,11 +1720,41 @@ function gameLoop(currentTime) {
     let dt = (currentTime - game.lastTime) / 1000;
     game.lastTime = currentTime;
 
-    // Apply speed multiplier
-    dt *= game.speedMultiplier;
-
     // Cap delta time to prevent huge jumps
     dt = Math.min(dt, 0.1);
+
+    // Title screen animation
+    if (game.state === 'title') {
+        // Update core pulse animation
+        core.pulseTime += dt * 2;
+        core.rotation += dt * 0.3; // Slow rotation
+
+        // Ensure canvas is sized
+        if (canvasWidth <= 0 || canvasHeight <= 0) {
+            resizeCanvas();
+        }
+
+        // Clear and draw title background
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.fillStyle = CYBER.bgDark;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Center the view
+        ctx.save();
+        ctx.translate(gameOffsetX, gameOffsetY);
+        ctx.scale(gameScale, gameScale);
+
+        // Draw the core in the background
+        drawCore();
+
+        ctx.restore();
+
+        requestAnimationFrame(gameLoop);
+        return;
+    }
+
+    // Apply speed multiplier
+    dt *= game.speedMultiplier;
 
     if (!game.gameOver) {
         // Spawning
@@ -2046,4 +2077,40 @@ document.getElementById('restartBtn').addEventListener('click', () => {
 SaveManager.init();
 core.x = 0;
 core.y = 0;
+
+// Title screen setup
+function showTitleScreen() {
+    game.state = 'title';
+    document.getElementById('titleScreen').classList.remove('hidden');
+    document.getElementById('ui').style.display = 'none';
+
+    // Update title stats
+    document.getElementById('titleHighScore').textContent = `Wave ${SaveManager.data.highScore}`;
+    document.getElementById('titleKills').textContent = SaveManager.data.totalEnemiesKilled.toLocaleString();
+}
+
+function hideTitleScreen() {
+    game.state = 'playing';
+    document.getElementById('titleScreen').classList.add('hidden');
+    document.getElementById('ui').style.display = 'block';
+}
+
+function startGame() {
+    hideTitleScreen();
+    AudioManager.init();
+    AudioManager.resume();
+    AudioManager.startMusic();
+    AudioManager.playClick();
+}
+
+// Play button handler
+document.getElementById('playBtn').addEventListener('click', startGame);
+document.getElementById('playBtn').addEventListener('touchend', (e) => {
+    e.preventDefault();
+    startGame();
+});
+
+// Show title screen on load
+showTitleScreen();
+
 requestAnimationFrame(gameLoop);
