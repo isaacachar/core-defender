@@ -1081,7 +1081,6 @@ let isBossWave = false;
 let isSwarmWave = false;
 
 function startWave(waveNum) {
-    console.log('startWave called with wave:', waveNum);
     game.currentWave = waveNum;
     game.waveInProgress = true;
 
@@ -1096,8 +1095,6 @@ function startWave(waveNum) {
     }
 
     let count = getEnemyCount(waveNum);
-    console.log('Enemy count for wave', waveNum, ':', count);
-
     if (isSwarmWave) {
         count *= 3;
         spawnDelay = 0.15;
@@ -1110,9 +1107,6 @@ function startWave(waveNum) {
 
     game.enemiesToSpawn = count;
     spawnTimer = spawnDelay; // Spawn first enemy immediately
-
-    console.log('Set enemiesToSpawn to:', game.enemiesToSpawn);
-    console.log('Set spawnTimer to:', spawnTimer, 'spawnDelay:', spawnDelay);
 
     updateWaveLabel();
 }
@@ -1550,13 +1544,8 @@ function gameLoop(currentTime) {
             }
         }
 
-        // Wave completion check - only after at least one enemy has spawned
-        if (game.enemiesAlive <= 0 && game.enemiesToSpawn <= 0 && game.waveInProgress && game.currentWave > 0) {
-            // Safety: don't end wave if we never spawned anything
-            if (enemies.length === 0 && game.enemiesAlive === 0) {
-                // Something went wrong, wave never started properly
-                console.log('Wave ended without spawning enemies!');
-            }
+        // Wave completion check
+        if (game.enemiesAlive <= 0 && game.enemiesToSpawn <= 0 && game.waveInProgress) {
             game.waveInProgress = false;
             SaveManager.addWaveCompleted();
         }
@@ -1606,28 +1595,10 @@ function gameLoop(currentTime) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // DEBUG: Draw a test rectangle to verify canvas works
-    ctx.fillStyle = '#ff0000';
-    ctx.fillRect(10, 10, 50, 50);
-
-    // DEBUG: Show game state
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '12px monospace';
-    ctx.fillText(`waveInProgress: ${game.waveInProgress}`, 10, 80);
-    ctx.fillText(`enemiesToSpawn: ${game.enemiesToSpawn}`, 10, 95);
-    ctx.fillText(`enemiesAlive: ${game.enemiesAlive}`, 10, 110);
-    ctx.fillText(`enemies.length: ${enemies.length}`, 10, 125);
-    ctx.fillText(`spawnTimer: ${spawnTimer.toFixed(2)}`, 10, 140);
-    ctx.fillText(`spawnDelay: ${spawnDelay}`, 10, 155);
-
     // Center and scale the view
     ctx.save();
     ctx.translate(gameOffsetX, gameOffsetY);
     ctx.scale(gameScale, gameScale);
-
-    // DEBUG: Draw at origin to verify transform
-    ctx.fillStyle = '#00ff00';
-    ctx.fillRect(-25, -25, 50, 50);
 
     drawCore();
 
