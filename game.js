@@ -441,24 +441,25 @@ const SaveManager = {
 let gameScale = 1;
 let gameOffsetX = 0;
 let gameOffsetY = 0;
+let canvasWidth = 0;
+let canvasHeight = 0;
 
 function resizeCanvas() {
-    const dpr = window.devicePixelRatio || 1;
     const width = window.innerWidth;
     const height = window.innerHeight;
 
-    // Set canvas to full screen
+    // Set canvas to full screen (no DPR scaling for simplicity/performance)
+    canvas.width = width;
+    canvas.height = height;
     canvas.style.width = width + 'px';
     canvas.style.height = height + 'px';
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
 
-    // Scale context for device pixel ratio
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    canvasWidth = width;
+    canvasHeight = height;
 
-    // Calculate game scale - game world is 800x800, fit to screen
+    // Calculate game scale - game world fits in screen
     const minDim = Math.min(width, height);
-    gameScale = minDim / 700; // Slight padding
+    gameScale = minDim / 700;
     gameOffsetX = width / 2;
     gameOffsetY = height / 2;
 }
@@ -1579,7 +1580,7 @@ function gameLoop(currentTime) {
     }
 
     // Draw
-    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
     // Center and scale the view
     ctx.save();
