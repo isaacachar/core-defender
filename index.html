@@ -3,17 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Core Defender</title>
+    <title>CORE::DEFENSE // 2084</title>
 
     <!-- PWA Meta Tags -->
-    <meta name="description" content="Defend your core against endless waves of enemies">
-    <meta name="theme-color" content="#0a0c10">
+    <meta name="description" content="Defend your core against endless waves of rogue AI">
+    <meta name="theme-color" content="#0a0a14">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Core Defender">
+    <meta name="apple-mobile-web-app-title" content="CORE::DEFENSE">
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icon-192.png">
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Share+Tech+Mono&display=swap');
+
+        :root {
+            --bg-dark: #0a0a14;
+            --bg-panel: rgba(10, 10, 20, 0.95);
+            --cyan: #00f0ff;
+            --cyan-dim: #00a0aa;
+            --magenta: #ff00aa;
+            --magenta-dim: #aa0077;
+            --yellow: #f0ff00;
+            --green: #00ff66;
+            --red: #ff0044;
+            --orange: #ff6600;
+            --text: #e0e0ff;
+            --text-dim: #606080;
+            --border: rgba(0, 240, 255, 0.3);
+            --glow-cyan: 0 0 20px rgba(0, 240, 255, 0.5);
+            --glow-magenta: 0 0 20px rgba(255, 0, 170, 0.5);
+            --glow-yellow: 0 0 20px rgba(240, 255, 0, 0.5);
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -27,8 +48,8 @@
             height: 100%;
             overflow: hidden;
             position: fixed;
-            background: #0a0c10;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-dark);
+            font-family: 'Share Tech Mono', 'Courier New', monospace;
             user-select: none;
             -webkit-user-select: none;
             -webkit-touch-callout: none;
@@ -46,7 +67,7 @@
         }
 
         #gameCanvas {
-            background: #0d0f14;
+            background: var(--bg-dark);
             width: 100%;
             height: 100%;
             display: block;
@@ -61,6 +82,26 @@
             pointer-events: none;
         }
 
+        /* Scanline overlay */
+        #ui::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 0, 0, 0.1) 0px,
+                rgba(0, 0, 0, 0.1) 1px,
+                transparent 1px,
+                transparent 3px
+            );
+            pointer-events: none;
+            z-index: 1000;
+            opacity: 0.3;
+        }
+
         /* Top Bar - Stats */
         #topBar {
             position: absolute;
@@ -70,30 +111,62 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            color: #e8f0ff;
-            font-size: clamp(13px, 3.5vw, 16px);
-            font-weight: 600;
-            text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(12px, 3.5vw, 15px);
+            font-weight: 500;
             pointer-events: none;
         }
 
         .statBox {
-            background: rgba(10, 12, 16, 0.85);
-            padding: 8px 12px;
-            border-radius: 8px;
-            border: 1px solid rgba(64, 128, 192, 0.3);
+            background: linear-gradient(135deg, rgba(0, 20, 30, 0.9) 0%, rgba(0, 10, 20, 0.95) 100%);
+            padding: 10px 14px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            position: relative;
+            clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+        }
+
+        .statBox::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--cyan), transparent);
         }
 
         #moneyLabel {
-            color: #5cff5c;
+            color: var(--green);
+            text-shadow: 0 0 10px rgba(0, 255, 102, 0.5);
+        }
+
+        #waveLabel {
+            color: var(--text);
+            text-shadow: 0 0 10px rgba(224, 224, 255, 0.3);
         }
 
         #waveLabel.boss {
-            color: #ff50c8 !important;
+            color: var(--magenta) !important;
+            text-shadow: var(--glow-magenta) !important;
+            animation: glitch 0.3s infinite;
         }
 
         #waveLabel.swarm {
-            color: #ffc832 !important;
+            color: var(--yellow) !important;
+            text-shadow: var(--glow-yellow) !important;
+        }
+
+        #highScoreLabel {
+            color: var(--cyan-dim);
+        }
+
+        @keyframes glitch {
+            0%, 100% { transform: translate(0); }
+            20% { transform: translate(-2px, 1px); }
+            40% { transform: translate(2px, -1px); }
+            60% { transform: translate(-1px, -1px); }
+            80% { transform: translate(1px, 1px); }
         }
 
         /* Top corners - small controls */
@@ -116,27 +189,29 @@
         }
 
         .smallBtn {
-            background: rgba(20, 30, 50, 0.9);
-            border: 1px solid rgba(64, 128, 192, 0.5);
-            color: #a0b8d0;
-            width: 42px;
-            height: 42px;
-            border-radius: 8px;
-            font-size: 16px;
+            background: linear-gradient(180deg, rgba(0, 30, 40, 0.9) 0%, rgba(0, 15, 25, 0.95) 100%);
+            border: 1px solid var(--cyan-dim);
+            color: var(--cyan);
+            width: 44px;
+            height: 44px;
+            border-radius: 4px;
+            font-size: 18px;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
+            transition: all 0.15s;
         }
 
         .smallBtn:active {
-            background: rgba(60, 100, 160, 0.9);
+            background: rgba(0, 240, 255, 0.2);
+            box-shadow: var(--glow-cyan);
             transform: scale(0.92);
         }
 
         .smallBtn.muted {
-            color: #404858;
-            border-color: rgba(64, 128, 192, 0.2);
+            color: var(--text-dim);
+            border-color: rgba(0, 240, 255, 0.2);
         }
 
         /* Bottom area - Main controls */
@@ -159,44 +234,55 @@
         }
 
         .abilityBtn {
-            background: rgba(25, 40, 65, 0.95);
-            border: 2px solid #4080c0;
-            color: #e8f0ff;
-            padding: 12px 8px;
-            border-radius: 12px;
-            font-size: clamp(11px, 2.8vw, 13px);
-            font-weight: 600;
-            min-height: 56px;
+            background: linear-gradient(180deg, rgba(20, 0, 40, 0.9) 0%, rgba(10, 0, 25, 0.95) 100%);
+            border: 2px solid var(--magenta-dim);
+            color: var(--text);
+            padding: 10px 8px;
+            border-radius: 4px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(10px, 2.5vw, 12px);
+            font-weight: 500;
+            min-height: 54px;
             flex: 1;
-            max-width: 110px;
+            max-width: 105px;
             text-align: center;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             gap: 2px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.15s;
         }
 
         .abilityBtn:active {
-            background: rgba(60, 100, 160, 0.95);
             transform: scale(0.95);
         }
 
         .abilityBtn:disabled {
-            background: rgba(15, 20, 30, 0.8);
-            border-color: #303848;
-            color: #505868;
+            background: rgba(20, 20, 30, 0.6);
+            border-color: rgba(255, 0, 170, 0.2);
+            color: var(--text-dim);
         }
 
         .abilityBtn.active {
-            border-color: #80ff80;
-            box-shadow: 0 0 15px rgba(128, 255, 128, 0.4);
-            background: rgba(40, 80, 60, 0.95);
+            border-color: var(--cyan);
+            box-shadow: var(--glow-cyan), inset 0 0 20px rgba(0, 240, 255, 0.2);
+            background: linear-gradient(180deg, rgba(0, 40, 50, 0.9) 0%, rgba(0, 20, 30, 0.95) 100%);
+            color: var(--cyan);
+            animation: pulse-glow 1s infinite;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: var(--glow-cyan), inset 0 0 20px rgba(0, 240, 255, 0.2); }
+            50% { box-shadow: 0 0 30px rgba(0, 240, 255, 0.7), inset 0 0 30px rgba(0, 240, 255, 0.3); }
         }
 
         .abilityBtn .count {
-            font-size: 10px;
+            font-size: 9px;
             opacity: 0.7;
+            font-family: 'Share Tech Mono', monospace;
         }
 
         /* Main action row */
@@ -207,46 +293,73 @@
         }
 
         #startWaveBtn {
-            background: linear-gradient(180deg, rgba(40, 80, 130, 0.95) 0%, rgba(25, 50, 90, 0.95) 100%);
-            border: 2px solid #5090d0;
-            color: #ffffff;
+            background: linear-gradient(180deg, rgba(0, 60, 80, 0.95) 0%, rgba(0, 30, 50, 0.98) 100%);
+            border: 2px solid var(--cyan);
+            color: var(--cyan);
             padding: 16px 32px;
-            border-radius: 14px;
-            font-size: clamp(14px, 4vw, 18px);
+            border-radius: 4px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(13px, 3.5vw, 16px);
             font-weight: 700;
             min-height: 58px;
             min-width: 160px;
             text-transform: uppercase;
-            letter-spacing: 1px;
-            box-shadow: 0 4px 15px rgba(64, 128, 200, 0.3);
+            letter-spacing: 2px;
+            box-shadow: var(--glow-cyan);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.15s;
+        }
+
+        #startWaveBtn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 240, 255, 0.3), transparent);
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { left: -100%; }
+            100% { left: 100%; }
         }
 
         #startWaveBtn:active {
-            background: linear-gradient(180deg, rgba(60, 110, 170, 0.95) 0%, rgba(40, 70, 120, 0.95) 100%);
+            background: rgba(0, 240, 255, 0.3);
             transform: scale(0.96);
         }
 
         #startWaveBtn:disabled {
-            background: rgba(20, 30, 45, 0.9);
-            border-color: #354050;
-            color: #607080;
+            background: rgba(20, 30, 40, 0.8);
+            border-color: var(--text-dim);
+            color: var(--text-dim);
             box-shadow: none;
         }
 
+        #startWaveBtn:disabled::before {
+            display: none;
+        }
+
         #speedBtn {
-            background: rgba(25, 40, 65, 0.95);
-            border: 2px solid #4080c0;
-            color: #e8f0ff;
+            background: linear-gradient(180deg, rgba(40, 0, 60, 0.9) 0%, rgba(20, 0, 40, 0.95) 100%);
+            border: 2px solid var(--magenta-dim);
+            color: var(--magenta);
             padding: 16px 20px;
-            border-radius: 14px;
+            border-radius: 4px;
+            font-family: 'Orbitron', sans-serif;
             font-size: clamp(14px, 4vw, 18px);
             font-weight: 700;
             min-height: 58px;
             min-width: 65px;
+            transition: all 0.15s;
         }
 
         #speedBtn:active {
-            background: rgba(60, 100, 160, 0.95);
+            background: rgba(255, 0, 170, 0.3);
+            box-shadow: var(--glow-magenta);
             transform: scale(0.96);
         }
 
@@ -256,17 +369,28 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(10, 14, 22, 0.98);
-            border: 2px solid #3a5070;
-            border-radius: 20px;
+            background: linear-gradient(180deg, rgba(5, 10, 20, 0.98) 0%, rgba(10, 5, 25, 0.99) 100%);
+            border: 2px solid var(--cyan-dim);
+            border-radius: 4px;
             padding: 20px;
             width: calc(100% - 24px);
-            max-width: 360px;
+            max-width: 380px;
             max-height: calc(100% - 100px);
             overflow-y: auto;
             pointer-events: auto;
             display: none;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+            box-shadow: var(--glow-cyan), 0 20px 60px rgba(0, 0, 0, 0.8);
+            clip-path: polygon(0 15px, 15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%);
+        }
+
+        .panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--cyan), var(--magenta), var(--cyan));
         }
 
         /* Upgrade Panel */
@@ -280,19 +404,26 @@
             align-items: center;
             margin-bottom: 16px;
             padding-bottom: 12px;
-            border-bottom: 1px solid #2a3a50;
+            border-bottom: 1px solid rgba(0, 240, 255, 0.2);
         }
 
         .panelHeader h2 {
-            color: #e8f0ff;
-            font-size: clamp(18px, 5vw, 22px);
+            color: var(--cyan);
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(16px, 4.5vw, 20px);
+            font-weight: 700;
             margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: var(--glow-cyan);
         }
 
         .panelMoney {
-            color: #5cff5c;
-            font-size: clamp(16px, 4vw, 20px);
+            color: var(--green);
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(14px, 3.5vw, 18px);
             font-weight: 700;
+            text-shadow: 0 0 10px rgba(0, 255, 102, 0.5);
         }
 
         .upgradeSection {
@@ -300,11 +431,23 @@
         }
 
         .sectionLabel {
-            color: #6080a0;
-            font-size: 11px;
+            color: var(--magenta);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 10px;
             text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 8px;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .sectionLabel::before,
+        .sectionLabel::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--magenta-dim), transparent);
         }
 
         .upgradeGrid {
@@ -316,44 +459,69 @@
         .upgradeBtn {
             display: flex;
             align-items: center;
-            background: rgba(25, 40, 65, 0.9);
-            border: 2px solid #3a5a80;
-            color: #e8f0ff;
+            background: linear-gradient(90deg, rgba(0, 20, 30, 0.8) 0%, rgba(10, 10, 30, 0.9) 100%);
+            border: 1px solid rgba(0, 240, 255, 0.3);
+            color: var(--text);
             padding: 12px 14px;
-            border-radius: 12px;
-            font-size: clamp(13px, 3.5vw, 15px);
+            border-radius: 4px;
+            font-size: clamp(12px, 3.2vw, 14px);
             font-weight: 500;
-            min-height: 60px;
+            min-height: 62px;
             text-align: left;
-            transition: border-color 0.15s;
+            transition: all 0.15s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upgradeBtn::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: var(--cyan-dim);
+            transition: all 0.15s;
         }
 
         .upgradeBtn:active {
-            background: rgba(50, 80, 120, 0.9);
+            background: rgba(0, 240, 255, 0.15);
             transform: scale(0.98);
         }
 
         .upgradeBtn:disabled {
-            background: rgba(15, 20, 30, 0.7);
-            border-color: #252535;
-            color: #505868;
+            background: rgba(20, 20, 30, 0.5);
+            border-color: rgba(100, 100, 120, 0.2);
+            color: var(--text-dim);
+        }
+
+        .upgradeBtn:disabled::before {
+            background: var(--text-dim);
         }
 
         .upgradeBtn.affordable {
-            border-color: #5cff5c;
+            border-color: var(--green);
+            box-shadow: 0 0 15px rgba(0, 255, 102, 0.2);
+        }
+
+        .upgradeBtn.affordable::before {
+            background: var(--green);
+            box-shadow: 0 0 10px var(--green);
         }
 
         .upgradeIcon {
-            width: 36px;
-            height: 36px;
-            background: rgba(64, 128, 192, 0.2);
-            border-radius: 8px;
+            width: 38px;
+            height: 38px;
+            background: rgba(0, 240, 255, 0.1);
+            border: 1px solid var(--cyan-dim);
+            border-radius: 4px;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 18px;
             margin-right: 12px;
             flex-shrink: 0;
+            color: var(--cyan);
         }
 
         .upgradeContent {
@@ -362,31 +530,42 @@
         }
 
         .upgradeName {
+            font-family: 'Orbitron', sans-serif;
             font-weight: 600;
-            margin-bottom: 2px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 3px;
+            color: var(--text);
         }
 
         .upgradeStats {
             font-size: 11px;
-            color: #7090b0;
+            color: var(--cyan);
+            font-family: 'Share Tech Mono', monospace;
         }
 
         .upgradeLevel {
-            font-size: 10px;
-            color: #5080a0;
+            font-size: 9px;
+            color: var(--text-dim);
             margin-top: 2px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         .upgradeCost {
+            font-family: 'Orbitron', sans-serif;
             font-weight: 700;
-            color: #5cff5c;
-            font-size: clamp(13px, 3.5vw, 15px);
+            color: var(--green);
+            font-size: clamp(12px, 3.2vw, 14px);
             margin-left: 10px;
             flex-shrink: 0;
+            text-shadow: 0 0 8px rgba(0, 255, 102, 0.4);
         }
 
         .upgradeBtn:disabled .upgradeCost {
-            color: #505868;
+            color: var(--text-dim);
+            text-shadow: none;
         }
 
         /* Ability purchase row */
@@ -401,61 +580,77 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            background: rgba(25, 40, 65, 0.9);
-            border: 2px solid #3a5a80;
-            color: #e8f0ff;
+            background: linear-gradient(180deg, rgba(40, 0, 50, 0.8) 0%, rgba(20, 0, 30, 0.9) 100%);
+            border: 1px solid var(--magenta-dim);
+            color: var(--text);
             padding: 12px 8px;
-            border-radius: 12px;
-            font-size: 12px;
+            border-radius: 4px;
+            font-size: 11px;
             font-weight: 500;
-            min-height: 70px;
+            min-height: 72px;
             text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.15s;
         }
 
         .abilityPurchaseBtn:active {
-            background: rgba(50, 80, 120, 0.9);
+            background: rgba(255, 0, 170, 0.2);
             transform: scale(0.96);
         }
 
         .abilityPurchaseBtn:disabled {
-            background: rgba(15, 20, 30, 0.7);
-            border-color: #252535;
-            color: #505868;
+            background: rgba(20, 20, 30, 0.5);
+            border-color: rgba(255, 0, 170, 0.2);
+            color: var(--text-dim);
         }
 
         .abilityPurchaseBtn.affordable {
-            border-color: #5cff5c;
+            border-color: var(--green);
+            box-shadow: 0 0 12px rgba(0, 255, 102, 0.2);
         }
 
         .abilityPurchaseBtn .icon {
-            font-size: 20px;
+            font-size: 22px;
             margin-bottom: 4px;
+            color: var(--magenta);
+        }
+
+        .abilityPurchaseBtn:disabled .icon {
+            color: var(--text-dim);
         }
 
         .abilityPurchaseBtn .cost {
-            color: #5cff5c;
+            color: var(--green);
+            font-family: 'Orbitron', sans-serif;
             font-weight: 700;
-            font-size: 13px;
+            font-size: 12px;
+            margin-top: 2px;
         }
 
         .abilityPurchaseBtn:disabled .cost {
-            color: #505868;
+            color: var(--text-dim);
         }
 
         #closeBtn {
             margin-top: 16px;
             width: 100%;
-            background: rgba(40, 50, 70, 0.9);
-            border: 2px solid #4a6080;
-            color: #c0d0e0;
+            background: linear-gradient(180deg, rgba(0, 40, 50, 0.9) 0%, rgba(0, 20, 35, 0.95) 100%);
+            border: 2px solid var(--cyan-dim);
+            color: var(--cyan);
             padding: 14px;
-            border-radius: 12px;
-            font-size: 15px;
+            border-radius: 4px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 13px;
             font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: all 0.15s;
         }
 
         #closeBtn:active {
-            background: rgba(60, 80, 110, 0.9);
+            background: rgba(0, 240, 255, 0.2);
+            box-shadow: var(--glow-cyan);
             transform: scale(0.98);
         }
 
@@ -466,42 +661,67 @@
         }
 
         #gameOverText {
-            font-size: clamp(24px, 7vw, 32px);
-            font-weight: 700;
-            color: #ff5050;
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(22px, 6vw, 30px);
+            font-weight: 900;
+            color: var(--red);
             margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            text-shadow: 0 0 20px rgba(255, 0, 68, 0.6);
+            animation: glitch 0.5s infinite;
         }
 
         #gameOverText.newHighScore {
-            color: #ffd700;
+            color: var(--yellow);
+            text-shadow: var(--glow-yellow);
         }
 
         #gameOverStats {
-            color: #8090a8;
-            font-size: clamp(14px, 3.5vw, 16px);
+            color: var(--text-dim);
+            font-size: clamp(13px, 3.5vw, 15px);
             margin-bottom: 24px;
-            line-height: 1.9;
+            line-height: 2;
         }
 
         #gameOverStats .highlight {
-            color: #ffcc00;
+            color: var(--yellow);
             font-weight: 600;
+            text-shadow: 0 0 8px rgba(240, 255, 0, 0.4);
         }
 
         #restartBtn {
-            background: linear-gradient(180deg, rgba(40, 80, 130, 0.95) 0%, rgba(25, 50, 90, 0.95) 100%);
-            border: 2px solid #5090d0;
-            color: #ffffff;
+            background: linear-gradient(180deg, rgba(0, 60, 80, 0.95) 0%, rgba(0, 30, 50, 0.98) 100%);
+            border: 2px solid var(--cyan);
+            color: var(--cyan);
             padding: 16px 40px;
-            border-radius: 14px;
-            font-size: 17px;
+            border-radius: 4px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 15px;
             font-weight: 700;
-            box-shadow: 0 4px 15px rgba(64, 128, 200, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            box-shadow: var(--glow-cyan);
+            transition: all 0.15s;
         }
 
         #restartBtn:active {
-            background: linear-gradient(180deg, rgba(60, 110, 170, 0.95) 0%, rgba(40, 70, 120, 0.95) 100%);
+            background: rgba(0, 240, 255, 0.3);
             transform: scale(0.96);
+        }
+
+        /* Scrollbar styling */
+        .panel::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .panel::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .panel::-webkit-scrollbar-thumb {
+            background: var(--cyan-dim);
+            border-radius: 2px;
         }
 
         /* Prevent pull-to-refresh */
@@ -517,8 +737,8 @@
             <!-- Top Stats Bar -->
             <div id="topBar">
                 <span class="statBox" id="moneyLabel">$0</span>
-                <span class="statBox" id="waveLabel">Wave 0</span>
-                <span class="statBox" id="highScoreLabel">Best: 0</span>
+                <span class="statBox" id="waveLabel">WAVE::00</span>
+                <span class="statBox" id="highScoreLabel">BEST::0</span>
             </div>
 
             <!-- Top Left - Speed Control -->
@@ -551,54 +771,54 @@
 
                 <!-- Main Action Row -->
                 <div id="actionRow">
-                    <button id="startWaveBtn">START</button>
-                    <button id="speedBtn">1x</button>
+                    <button id="startWaveBtn">DEPLOY</button>
+                    <button id="speedBtn">1X</button>
                 </div>
             </div>
 
             <!-- Upgrade Panel -->
             <div id="upgradePanel" class="panel">
                 <div class="panelHeader">
-                    <h2>UPGRADES</h2>
+                    <h2>// UPGRADES</h2>
                     <span class="panelMoney" id="panelMoneyLabel">$0</span>
                 </div>
 
                 <div class="upgradeSection">
-                    <div class="sectionLabel">Tower Stats</div>
+                    <div class="sectionLabel">Core Systems</div>
                     <div class="upgradeGrid">
                         <button class="upgradeBtn" id="damageBtn">
-                            <div class="upgradeIcon">&#9876;</div>
+                            <div class="upgradeIcon">⚡</div>
                             <div class="upgradeContent">
-                                <div class="upgradeName">Damage</div>
-                                <div class="upgradeStats" id="damageInfo">35 dmg</div>
-                                <div class="upgradeLevel" id="damageLevel">Level 1</div>
+                                <div class="upgradeName">Power Output</div>
+                                <div class="upgradeStats" id="damageInfo">35 DMG</div>
+                                <div class="upgradeLevel" id="damageLevel">LVL::01</div>
                             </div>
                             <div class="upgradeCost" id="damageCost">$50</div>
                         </button>
                         <button class="upgradeBtn" id="fireRateBtn">
-                            <div class="upgradeIcon">&#9889;</div>
+                            <div class="upgradeIcon">◎</div>
                             <div class="upgradeContent">
-                                <div class="upgradeName">Fire Rate</div>
-                                <div class="upgradeStats" id="fireRateInfo">3.0/s</div>
-                                <div class="upgradeLevel" id="fireRateLevel">Level 1</div>
+                                <div class="upgradeName">Cycle Rate</div>
+                                <div class="upgradeStats" id="fireRateInfo">3.0/SEC</div>
+                                <div class="upgradeLevel" id="fireRateLevel">LVL::01</div>
                             </div>
                             <div class="upgradeCost" id="fireRateCost">$75</div>
                         </button>
                         <button class="upgradeBtn" id="rangeBtn">
-                            <div class="upgradeIcon">&#9678;</div>
+                            <div class="upgradeIcon">◉</div>
                             <div class="upgradeContent">
-                                <div class="upgradeName">Range</div>
-                                <div class="upgradeStats" id="rangeInfo">225</div>
-                                <div class="upgradeLevel" id="rangeLevel">Level 1</div>
+                                <div class="upgradeName">Scan Range</div>
+                                <div class="upgradeStats" id="rangeInfo">225 UNITS</div>
+                                <div class="upgradeLevel" id="rangeLevel">LVL::01</div>
                             </div>
                             <div class="upgradeCost" id="rangeCost">$60</div>
                         </button>
                         <button class="upgradeBtn" id="multishotBtn">
-                            <div class="upgradeIcon">&#10070;</div>
+                            <div class="upgradeIcon">❖</div>
                             <div class="upgradeContent">
-                                <div class="upgradeName">Multi-shot</div>
-                                <div class="upgradeStats" id="multishotInfo">1 projectile</div>
-                                <div class="upgradeLevel" id="multishotLevel">Level 1</div>
+                                <div class="upgradeName">Multi-Lock</div>
+                                <div class="upgradeStats" id="multishotInfo">1 TARGET</div>
+                                <div class="upgradeLevel" id="multishotLevel">LVL::01</div>
                             </div>
                             <div class="upgradeCost" id="multishotCost">$250</div>
                         </button>
@@ -606,34 +826,34 @@
                 </div>
 
                 <div class="upgradeSection">
-                    <div class="sectionLabel">Abilities (consumable)</div>
+                    <div class="sectionLabel">Protocols</div>
                     <div class="abilityPurchaseRow">
                         <button class="abilityPurchaseBtn" id="buyPierceBtn">
-                            <span class="icon">&#8596;</span>
+                            <span class="icon">↯</span>
                             <span>Pierce</span>
                             <span class="cost">$50</span>
                         </button>
                         <button class="abilityPurchaseBtn" id="buyFrostBtn">
-                            <span class="icon">&#10052;</span>
+                            <span class="icon">❄</span>
                             <span>Frost</span>
                             <span class="cost">$40</span>
                         </button>
                         <button class="abilityPurchaseBtn" id="buyCritBtn">
-                            <span class="icon">&#9733;</span>
+                            <span class="icon">★</span>
                             <span>Crit</span>
                             <span class="cost">$60</span>
                         </button>
                     </div>
                 </div>
 
-                <button id="closeBtn">Continue</button>
+                <button id="closeBtn">[CONTINUE]</button>
             </div>
 
             <!-- Game Over Panel -->
             <div id="gameOverPanel" class="panel">
-                <div id="gameOverText">CORE DESTROYED</div>
+                <div id="gameOverText">SYSTEM FAILURE</div>
                 <div id="gameOverStats"></div>
-                <button id="restartBtn">Play Again</button>
+                <button id="restartBtn">REBOOT</button>
             </div>
         </div>
     </div>

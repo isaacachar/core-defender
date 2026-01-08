@@ -1,5 +1,22 @@
 // Core Defender - JavaScript Port
 // ================================
+// CYBERPUNK VISUAL THEME
+
+// Cyberpunk color palette
+const CYBER = {
+    cyan: '#00f0ff',
+    cyanDim: '#00a0aa',
+    magenta: '#ff00aa',
+    magentaDim: '#aa0077',
+    yellow: '#f0ff00',
+    green: '#00ff66',
+    red: '#ff0044',
+    orange: '#ff6600',
+    purple: '#aa00ff',
+    bgDark: '#0a0a14',
+    bgMid: '#0d1117',
+    gridLine: 'rgba(0, 240, 255, 0.1)'
+};
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -476,8 +493,15 @@ window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 100)
 document.addEventListener('DOMContentLoaded', resizeCanvas);
 
 // Game Constants - scaled for game world
-const SPAWN_RADIUS = 280;
+const BASE_SPAWN_RADIUS = 280;
+const SPAWN_BUFFER = 60; // Enemies spawn this far outside attack range
 const ABILITY_DURATION = 8;
+const MAX_RANGE = 400; // Maximum attack range (prevents going off screen)
+
+// Dynamic spawn radius - always outside attack range
+function getSpawnRadius() {
+    return Math.max(BASE_SPAWN_RADIUS, core.attackRange + SPAWN_BUFFER);
+}
 
 // ==================
 // GAME STATE
@@ -567,9 +591,9 @@ class Enemy {
         this.canSplit = false;
         this.splitCount = 0;
 
-        // Colors
-        this.bodyColor = '#e64033';
-        this.glowColor = '#ff3319';
+        // Cyberpunk Colors
+        this.bodyColor = CYBER.red;
+        this.glowColor = CYBER.magenta;
     }
 
     setType(type) {
@@ -579,38 +603,38 @@ class Enemy {
                 this.speed *= 1.8;
                 this.maxHealth *= 0.5;
                 this.moneyReward = Math.floor(this.moneyReward * 0.8);
-                this.bodyColor = '#33cce6';
-                this.glowColor = '#19e6ff';
+                this.bodyColor = CYBER.cyan;
+                this.glowColor = '#00ffff';
                 break;
             case 'tank':
                 this.speed *= 0.5;
                 this.maxHealth *= 3.0;
                 this.moneyReward = Math.floor(this.moneyReward * 2.0);
-                this.bodyColor = '#994db3';
-                this.glowColor = '#b333e6';
+                this.bodyColor = CYBER.purple;
+                this.glowColor = '#cc00ff';
                 break;
             case 'swarm':
                 this.speed *= 1.2;
                 this.maxHealth *= 0.3;
                 this.moneyReward = Math.floor(this.moneyReward * 0.5);
-                this.bodyColor = '#e6b333';
-                this.glowColor = '#ffcc19';
+                this.bodyColor = CYBER.yellow;
+                this.glowColor = '#ffff00';
                 break;
             case 'shielded':
                 this.speed *= 0.9;
                 this.maxHealth *= 1.5;
                 this.shieldHits = 5;
                 this.moneyReward = Math.floor(this.moneyReward * 1.5);
-                this.bodyColor = '#4dcccc';
-                this.glowColor = '#33ffff';
+                this.bodyColor = '#00dddd';
+                this.glowColor = CYBER.cyan;
                 break;
             case 'regen':
                 this.speed *= 0.8;
                 this.maxHealth *= 2.0;
                 this.regenRate = this.maxHealth * 0.1;
                 this.moneyReward = Math.floor(this.moneyReward * 1.8);
-                this.bodyColor = '#4de64d';
-                this.glowColor = '#33ff4d';
+                this.bodyColor = CYBER.green;
+                this.glowColor = '#00ff88';
                 break;
             case 'splitter':
                 this.speed *= 1.0;
@@ -618,8 +642,8 @@ class Enemy {
                 this.canSplit = true;
                 this.splitCount = 2;
                 this.moneyReward = Math.floor(this.moneyReward * 0.7);
-                this.bodyColor = '#e666b3';
-                this.glowColor = '#ff4dcc';
+                this.bodyColor = CYBER.magenta;
+                this.glowColor = '#ff44cc';
                 break;
         }
         this.health = this.maxHealth;
@@ -707,8 +731,8 @@ class Enemy {
                 child.maxHealth = this.maxHealth * 0.3;
                 child.health = child.maxHealth;
                 child.moneyReward = Math.floor(this.moneyReward * 0.3);
-                child.bodyColor = '#ff99cc';
-                child.glowColor = '#ff66b3';
+                child.bodyColor = '#ff66aa';
+                child.glowColor = CYBER.magenta;
                 child.canSplit = false;
                 child.spawnScale = 1;
                 enemies.push(child);
@@ -765,11 +789,18 @@ class Enemy {
         ctx.closePath();
         ctx.fill();
 
-        // Eye
-        ctx.fillStyle = '#ffe64d';
+        // Eye - neon cyan
+        ctx.fillStyle = CYBER.cyan;
         ctx.beginPath();
         ctx.arc(1 * s * sizeMult, 0, 1.5 * s * sizeMult, 0, Math.PI * 2);
         ctx.fill();
+        // Eye glow
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(1 * s * sizeMult, 0, 0.8 * s * sizeMult, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
 
         // Engine glow
         const engineGlow = Math.sin(Date.now() * 0.01) * 0.3 + 0.7;
@@ -782,52 +813,62 @@ class Enemy {
 
         ctx.restore();
 
-        // Shield indicator
+        // Shield indicator - cyberpunk cyan
         if (this.shieldHits > 0) {
-            const shieldAlpha = 0.4 + Math.sin(Date.now() * 0.008) * 0.2;
-            ctx.strokeStyle = `rgba(77, 230, 255, ${shieldAlpha})`;
+            const shieldAlpha = 0.5 + Math.sin(Date.now() * 0.008) * 0.3;
+            ctx.strokeStyle = `rgba(0, 240, 255, ${shieldAlpha})`;
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.arc(this.x, this.y, 11 * s * sizeMult, 0, Math.PI * 2);
             ctx.stroke();
 
-            // Shield pips
+            // Shield pips - neon cyan
             for (let i = 0; i < this.shieldHits; i++) {
                 const pipAngle = (i / 5) * Math.PI - Math.PI / 2;
                 const pipX = this.x + Math.cos(pipAngle) * 9 * s * sizeMult;
                 const pipY = this.y + Math.sin(pipAngle) * 9 * s * sizeMult;
-                ctx.fillStyle = 'rgba(77, 255, 255, 0.8)';
+                ctx.fillStyle = CYBER.cyan;
                 ctx.beginPath();
                 ctx.arc(pipX, pipY, 1.5 * s, 0, Math.PI * 2);
                 ctx.fill();
             }
         }
 
-        // Regen indicator
+        // Regen indicator - neon green
         if (this.regenRate > 0) {
             const regenPulse = Math.sin(Date.now() * 0.01) * 0.3 + 0.7;
-            ctx.globalAlpha = 0.15;
-            ctx.fillStyle = '#33ff4d';
+            ctx.globalAlpha = 0.2;
+            ctx.fillStyle = CYBER.green;
             ctx.beginPath();
             ctx.arc(this.x, this.y, 12 * s * sizeMult * regenPulse, 0, Math.PI * 2);
             ctx.fill();
             ctx.globalAlpha = 1;
         }
 
-        // Health bar
+        // Health bar - cyberpunk style
         const barWidth = 15 * s * sizeMult;
         const barHeight = 2 * s;
         const barY = this.y - 11 * s * sizeMult;
         const healthPercent = this.health / this.maxHealth;
 
-        ctx.fillStyle = 'rgba(50, 50, 50, 0.8)';
+        // Bar background
+        ctx.fillStyle = 'rgba(10, 10, 20, 0.9)';
+        ctx.fillRect(this.x - barWidth / 2 - 1, barY - 1, barWidth + 2, barHeight + 2);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
         ctx.fillRect(this.x - barWidth / 2, barY, barWidth, barHeight);
 
-        let healthColor = '#33e64d';
-        if (healthPercent <= 0.5) healthColor = '#e6e633';
-        if (healthPercent <= 0.25) healthColor = '#e63333';
+        // Health color - neon gradient
+        let healthColor = CYBER.green;
+        if (healthPercent <= 0.5) healthColor = CYBER.yellow;
+        if (healthPercent <= 0.25) healthColor = CYBER.red;
         ctx.fillStyle = healthColor;
         ctx.fillRect(this.x - barWidth / 2, barY, barWidth * healthPercent, barHeight);
+
+        // Health bar glow
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = healthColor;
+        ctx.fillRect(this.x - barWidth / 2, barY - 1, barWidth * healthPercent, barHeight + 2);
+        ctx.globalAlpha = 1;
     }
 }
 
@@ -918,16 +959,17 @@ class Bullet {
 
     draw() {
         const sizeMult = this.isCrit ? 1.5 : 1;
-        const trailColor = this.isCrit ? '#ffcc33' : '#66ccff';
-        const glowColor = this.isCrit ? '#ff9919' : '#4db3ff';
-        const coreColor = this.isCrit ? '#ffff80' : '#cdf2ff';
+        // Cyberpunk bullet colors - magenta for crit, cyan for normal
+        const trailColor = this.isCrit ? CYBER.magenta : CYBER.cyan;
+        const glowColor = this.isCrit ? '#ff44aa' : CYBER.cyanDim;
+        const coreColor = this.isCrit ? CYBER.yellow : '#ffffff';
 
-        // Trail
+        // Trail - neon effect
         for (let i = 0; i < this.trail.length; i++) {
             const pos = this.trail[i];
             const alpha = 1 - (i / this.trail.length);
             const size = 3 * alpha * sizeMult;
-            ctx.globalAlpha = alpha * 0.5;
+            ctx.globalAlpha = alpha * 0.6;
             ctx.fillStyle = trailColor;
             ctx.beginPath();
             ctx.arc(pos.x, pos.y, size, 0, Math.PI * 2);
@@ -935,20 +977,22 @@ class Bullet {
         }
         ctx.globalAlpha = 1;
 
-        // Glow
-        ctx.globalAlpha = 0.3;
+        // Outer glow
+        ctx.globalAlpha = 0.4;
         ctx.fillStyle = glowColor;
         ctx.beginPath();
-        ctx.arc(this.x, this.y, 5 * sizeMult, 0, Math.PI * 2);
+        ctx.arc(this.x, this.y, 6 * sizeMult, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.globalAlpha = 0.6;
+        // Inner glow
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = trailColor;
         ctx.beginPath();
-        ctx.arc(this.x, this.y, 3 * sizeMult, 0, Math.PI * 2);
+        ctx.arc(this.x, this.y, 3.5 * sizeMult, 0, Math.PI * 2);
         ctx.fill();
         ctx.globalAlpha = 1;
 
-        // Core
+        // Core - bright white/yellow center
         ctx.fillStyle = coreColor;
         ctx.beginPath();
         ctx.arc(this.x, this.y, 2 * sizeMult, 0, Math.PI * 2);
@@ -999,26 +1043,36 @@ function drawDamageNumbers() {
         let text = Math.floor(dn.amount).toString();
         let fontSize = dn.isCrit ? 16 : 12;
         if (dn.isBlocked) {
-            text = 'BLOCK';
+            text = 'BLOCKED';
             fontSize = 10;
         }
         fontSize = Math.floor(fontSize * scale);
 
+        // Cyberpunk damage colors
         let color, outlineColor;
         if (dn.isBlocked) {
-            color = `rgba(77, 230, 255, ${alpha})`;
-            outlineColor = `rgba(0, 77, 102, ${alpha * 0.8})`;
+            // Cyan for blocked
+            color = `rgba(0, 240, 255, ${alpha})`;
+            outlineColor = `rgba(0, 50, 80, ${alpha * 0.9})`;
         } else if (dn.isCrit) {
-            color = `rgba(255, 230, 51, ${alpha})`;
-            outlineColor = `rgba(204, 77, 0, ${alpha})`;
+            // Magenta/yellow for crit
+            color = `rgba(255, 0, 170, ${alpha})`;
+            outlineColor = `rgba(80, 0, 50, ${alpha})`;
         } else {
+            // White/cyan for normal
             color = `rgba(255, 255, 255, ${alpha})`;
-            outlineColor = `rgba(0, 0, 0, ${alpha * 0.8})`;
+            outlineColor = `rgba(0, 100, 120, ${alpha * 0.8})`;
         }
 
-        ctx.font = `bold ${fontSize}px Arial`;
+        ctx.font = `bold ${fontSize}px 'Orbitron', Arial`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+
+        // Glow effect
+        ctx.globalAlpha = alpha * 0.5;
+        ctx.fillStyle = color;
+        ctx.fillText(text, dn.x, dn.y);
+        ctx.globalAlpha = 1;
 
         // Outline
         ctx.fillStyle = outlineColor;
@@ -1069,7 +1123,8 @@ function getAvailableTypes(wave) {
     if (wave <= 6) return ['normal', 'fast', 'tank'];
     if (wave <= 9) return ['normal', 'fast', 'tank', 'swarm', 'shielded'];
     if (wave <= 12) return ['normal', 'fast', 'tank', 'swarm', 'shielded', 'regen'];
-    return ['normal', 'fast', 'tank', 'swarm', 'shielded', 'regen', 'splitter'];
+    // Splitters are more common after wave 13 (appear twice in pool)
+    return ['normal', 'fast', 'tank', 'swarm', 'shielded', 'regen', 'splitter', 'splitter'];
 }
 
 // ==================
@@ -1113,8 +1168,9 @@ function startWave(waveNum) {
 
 function spawnEnemy() {
     const angle = Math.random() * Math.PI * 2;
-    const x = core.x + Math.cos(angle) * SPAWN_RADIUS;
-    const y = core.y + Math.sin(angle) * SPAWN_RADIUS;
+    const spawnRadius = getSpawnRadius();
+    const x = core.x + Math.cos(angle) * spawnRadius;
+    const y = core.y + Math.sin(angle) * spawnRadius;
 
     const enemy = new Enemy(x, y, game.currentWave);
 
@@ -1256,104 +1312,181 @@ function shoot() {
 
 function drawCore() {
     const pulse = Math.sin(core.pulseTime * 2) * 0.2 + 0.8;
+    const time = Date.now() * 0.001;
 
-    // Range indicator
-    ctx.globalAlpha = 0.03 * pulse;
-    ctx.fillStyle = '#3366cc';
+    // Draw grid pattern in background
+    ctx.save();
+    ctx.globalAlpha = 0.1;
+    const gridSize = 30;
+    const gridRadius = core.attackRange + 50;
+    ctx.strokeStyle = CYBER.cyan;
+    ctx.lineWidth = 0.5;
+    for (let x = -gridRadius; x <= gridRadius; x += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(core.x + x, core.y - gridRadius);
+        ctx.lineTo(core.x + x, core.y + gridRadius);
+        ctx.stroke();
+    }
+    for (let y = -gridRadius; y <= gridRadius; y += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(core.x - gridRadius, core.y + y);
+        ctx.lineTo(core.x + gridRadius, core.y + y);
+        ctx.stroke();
+    }
+    ctx.restore();
+
+    // Range indicator - cyberpunk cyan fill
+    ctx.globalAlpha = 0.04 * pulse;
+    ctx.fillStyle = CYBER.cyan;
     ctx.beginPath();
     ctx.arc(core.x, core.y, core.attackRange, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 1;
 
-    // Range ring
-    ctx.strokeStyle = `rgba(77, 153, 255, ${0.4 * pulse})`;
-    ctx.lineWidth = 1.5;
+    // Range ring - neon cyan
+    ctx.strokeStyle = `rgba(0, 240, 255, ${0.5 * pulse})`;
+    ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(core.x, core.y, core.attackRange, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Animated dashes
+    // Animated scanning dashes
     const numDashes = 24;
     for (let i = 0; i < numDashes; i++) {
         const angle = (i / numDashes) * Math.PI * 2 + core.pulseTime * 0.5;
-        const r1 = core.attackRange - 4;
-        const r2 = core.attackRange + 4;
-        ctx.strokeStyle = 'rgba(102, 178, 255, 0.3)';
-        ctx.lineWidth = 1;
+        const r1 = core.attackRange - 5;
+        const r2 = core.attackRange + 5;
+        const dashAlpha = 0.3 + Math.sin(angle * 3 + time * 2) * 0.2;
+        ctx.strokeStyle = `rgba(0, 240, 255, ${dashAlpha})`;
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(core.x + Math.cos(angle) * r1, core.y + Math.sin(angle) * r1);
         ctx.lineTo(core.x + Math.cos(angle) * r2, core.y + Math.sin(angle) * r2);
         ctx.stroke();
     }
 
-    // Core base
-    ctx.fillStyle = '#192640';
+    // Hex grid pattern around core
+    ctx.globalAlpha = 0.15;
+    ctx.strokeStyle = CYBER.cyan;
+    ctx.lineWidth = 1;
+    for (let ring = 1; ring <= 3; ring++) {
+        const hexRadius = 25 + ring * 12;
+        ctx.beginPath();
+        for (let i = 0; i <= 6; i++) {
+            const hexAngle = (i / 6) * Math.PI * 2 - Math.PI / 2;
+            const hx = core.x + Math.cos(hexAngle) * hexRadius;
+            const hy = core.y + Math.sin(hexAngle) * hexRadius;
+            if (i === 0) ctx.moveTo(hx, hy);
+            else ctx.lineTo(hx, hy);
+        }
+        ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // Core base - dark with neon border
+    ctx.fillStyle = CYBER.bgDark;
     ctx.beginPath();
-    ctx.arc(core.x, core.y, 18, 0, Math.PI * 2);
+    ctx.arc(core.x, core.y, 20, 0, Math.PI * 2);
     ctx.fill();
 
-    // Core ring
-    ctx.strokeStyle = '#3366cc';
+    // Outer ring - magenta
+    ctx.strokeStyle = CYBER.magenta;
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(core.x, core.y, 16, 0, Math.PI * 2);
+    ctx.arc(core.x, core.y, 18, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Inner glow
+    // Core ring - cyan
+    ctx.strokeStyle = CYBER.cyan;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(core.x, core.y, 15, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Inner chamber
     const innerPulse = Math.sin(core.pulseTime * 1.5) * 0.2 + 0.8;
-    ctx.fillStyle = '#263340';
+    ctx.fillStyle = '#0a1520';
     ctx.beginPath();
-    ctx.arc(core.x, core.y, 11, 0, Math.PI * 2);
+    ctx.arc(core.x, core.y, 12, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = `rgba(51, 128, 255, ${0.8 * innerPulse})`;
+    // Energy core - pulsing cyan
+    ctx.globalAlpha = 0.6 * innerPulse;
+    ctx.fillStyle = CYBER.cyan;
     ctx.beginPath();
-    ctx.arc(core.x, core.y, 7.5, 0, Math.PI * 2);
+    ctx.arc(core.x, core.y, 9, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = `rgba(128, 204, 255, ${innerPulse})`;
+    ctx.globalAlpha = 0.8 * innerPulse;
+    ctx.fillStyle = CYBER.cyan;
     ctx.beginPath();
-    ctx.arc(core.x, core.y, 4, 0, Math.PI * 2);
+    ctx.arc(core.x, core.y, 6, 0, Math.PI * 2);
     ctx.fill();
+
+    // Bright center
+    ctx.globalAlpha = innerPulse;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(core.x, core.y, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
 
     // Turret
     ctx.save();
     ctx.translate(core.x, core.y);
     ctx.rotate(core.rotation);
 
-    // Barrel
-    ctx.fillStyle = '#334866';
-    ctx.fillRect(0, -3, 25, 6);
+    // Barrel - dark with neon highlights
+    ctx.fillStyle = '#0a1520';
+    ctx.fillRect(0, -4, 28, 8);
 
-    // Barrel highlight
-    ctx.strokeStyle = '#4d7399';
+    // Barrel border
+    ctx.strokeStyle = CYBER.cyan;
     ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, -1.5);
-    ctx.lineTo(25, -1.5);
-    ctx.stroke();
+    ctx.strokeRect(0, -4, 28, 8);
 
-    // Muzzle flash
+    // Barrel highlights
+    ctx.fillStyle = CYBER.cyanDim;
+    ctx.fillRect(4, -2, 20, 1);
+    ctx.fillRect(4, 1, 20, 1);
+
+    // Energy lines on barrel
+    const energyPulse = Math.sin(time * 4) * 0.5 + 0.5;
+    ctx.globalAlpha = 0.5 + energyPulse * 0.5;
+    ctx.fillStyle = CYBER.cyan;
+    ctx.fillRect(25, -3, 3, 6);
+    ctx.globalAlpha = 1;
+
+    // Muzzle flash - cyan/magenta
     if (core.muzzleFlash > 0) {
         ctx.globalAlpha = core.muzzleFlash;
-        ctx.fillStyle = '#ffe680';
+        ctx.fillStyle = CYBER.cyan;
         ctx.beginPath();
-        ctx.arc(25, 0, 6 * core.muzzleFlash, 0, Math.PI * 2);
+        ctx.arc(28, 0, 8 * core.muzzleFlash, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = CYBER.magenta;
+        ctx.beginPath();
+        ctx.arc(28, 0, 5 * core.muzzleFlash, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
-        ctx.arc(25, 0, 3 * core.muzzleFlash, 0, Math.PI * 2);
+        ctx.arc(28, 0, 2 * core.muzzleFlash, 0, Math.PI * 2);
         ctx.fill();
         ctx.globalAlpha = 1;
     }
 
     ctx.restore();
 
-    // Turret base
-    ctx.fillStyle = '#263340';
+    // Turret base center
+    ctx.fillStyle = CYBER.bgDark;
     ctx.beginPath();
-    ctx.arc(core.x, core.y, 6, 0, Math.PI * 2);
+    ctx.arc(core.x, core.y, 7, 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = CYBER.magenta;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(core.x, core.y, 7, 0, Math.PI * 2);
+    ctx.stroke();
 }
 
 // ==================
@@ -1371,19 +1504,36 @@ function updateExplosions(dt) {
 function drawExplosions() {
     for (const exp of explosions) {
         const progress = exp.time / exp.maxTime;
-        const radius = 10 + progress * 20;
+        const radius = 12 + progress * 25;
         const alpha = 1 - progress;
 
+        // Outer ring - magenta
+        ctx.globalAlpha = alpha * 0.4;
+        ctx.strokeStyle = CYBER.magenta;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(exp.x, exp.y, radius * 1.2, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Middle ring - cyan
         ctx.globalAlpha = alpha * 0.5;
-        ctx.fillStyle = '#ff9933';
+        ctx.fillStyle = CYBER.cyan;
         ctx.beginPath();
         ctx.arc(exp.x, exp.y, radius, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.globalAlpha = alpha;
-        ctx.fillStyle = '#ffcc66';
+        // Inner glow - magenta
+        ctx.globalAlpha = alpha * 0.7;
+        ctx.fillStyle = CYBER.magenta;
         ctx.beginPath();
-        ctx.arc(exp.x, exp.y, radius * 0.5, 0, Math.PI * 2);
+        ctx.arc(exp.x, exp.y, radius * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Core - white
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(exp.x, exp.y, radius * 0.3, 0, Math.PI * 2);
         ctx.fill();
 
         ctx.globalAlpha = 1;
@@ -1485,11 +1635,13 @@ function updateUpgradePanel() {
 
     // Range upgrade
     const rangeBtn = document.getElementById('rangeBtn');
-    document.getElementById('rangeInfo').textContent = `${Math.floor(core.attackRange)}`;
-    document.getElementById('rangeCost').textContent = `$${game.rangeCost}`;
+    const rangeMaxed = core.attackRange >= MAX_RANGE;
+    document.getElementById('rangeInfo').textContent = rangeMaxed ? `${Math.floor(core.attackRange)} MAX` : `${Math.floor(core.attackRange)}`;
+    document.getElementById('rangeCost').textContent = rangeMaxed ? 'MAXED' : `$${game.rangeCost}`;
     document.getElementById('rangeLevel').textContent = `Level ${upgradeLevels.range}`;
-    rangeBtn.disabled = game.money < game.rangeCost;
-    rangeBtn.classList.toggle('affordable', game.money >= game.rangeCost);
+    const canBuyRange = game.money >= game.rangeCost && !rangeMaxed;
+    rangeBtn.disabled = !canBuyRange;
+    rangeBtn.classList.toggle('affordable', canBuyRange);
 
     // Multishot upgrade
     const multishotBtn = document.getElementById('multishotBtn');
@@ -1748,10 +1900,10 @@ document.getElementById('fireRateBtn').addEventListener('click', () => {
 });
 
 document.getElementById('rangeBtn').addEventListener('click', () => {
-    if (game.money >= game.rangeCost) {
+    if (game.money >= game.rangeCost && core.attackRange < MAX_RANGE) {
         AudioManager.playUpgrade();
         game.money -= game.rangeCost;
-        core.attackRange += 25;
+        core.attackRange = Math.min(core.attackRange + 25, MAX_RANGE);
         game.rangeCost = Math.floor(game.rangeCost * 1.6);
         upgradeLevels.range++;
         updateUpgradePanel();
