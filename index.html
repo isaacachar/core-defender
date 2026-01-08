@@ -374,11 +374,15 @@
     </div>
     <script src="game.js"></script>
     <script>
-        // Register Service Worker for PWA
+        // DISABLED: Service Worker causing cache issues
+        // Unregister any existing service workers
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js')
-                .then(() => console.log('SW registered'))
-                .catch(() => {});
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for(let registration of registrations) {
+                    registration.unregister();
+                    console.log('SW unregistered');
+                }
+            });
         }
 
         // Prevent scroll/pull-to-refresh on canvas only
