@@ -320,11 +320,15 @@ const AudioManager = {
     startMusic() {
         if (!this.initialized || !this.musicEnabled || this.musicPlaying) return;
         this.musicPlaying = true;
+        this.musicGain.gain.value = 0.3; // Restore volume
         this.playMusicLoop();
     },
 
     stopMusic() {
         this.musicPlaying = false;
+        if (this.musicGain) {
+            this.musicGain.gain.value = 0; // Instant mute
+        }
     },
 
     playMusicLoop() {
@@ -532,7 +536,8 @@ const game = {
     frostCost: 40,
     critCost: 60,
     nukeCost: 500,
-    shieldCost: 400
+    shieldCost: 400,
+    pulseCost: 300
 };
 
 // ==================
@@ -561,7 +566,12 @@ const core = {
     critActive: false,
     critTimer: 0,
     critCharges: 0,
-    nukeCharges: 0
+    nukeCharges: 0,
+    // PULSE ability (laser ring)
+    pulseCharges: 0,
+    pulseActive: false,
+    pulseTimer: 0,
+    pulseDamageTimer: 0
 };
 
 // ==================
@@ -1362,6 +1372,60 @@ function updateCore(dt) {
         if (core.critTimer <= 0) core.critActive = false;
     }
 
+    // Update PULSE laser ring
+    if (core.pulseActive) {
+        core.pulseTimer -= dt;
+        core.pulseDamageTimer -= dt;
+
+        // Damage enemies crossing the range boundary (every 0.15 seconds)
+        if (core.pulseDamageTimer <= 0) {
+            core.pulseDamageTimer = 0.15; // Faster damage tick rate
+
+            const ringThickness = 30; // How close to the ring edge to take damage
+            const enemiesToKill = [];
+
+            for (const enemy of enemies) {
+                const dx = enemy.x - core.x;
+                const dy = enemy.y - core.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                // Check if enemy is near the range ring (crossing through it)
+                if (Math.abs(dist - core.attackRange) < ringThickness) {
+                    // High flat damage + percentage damage = destroys weak enemies, hurts tanks
+                    const flatDamage = 80; // Base damage that kills weak enemies
+                    const percentDamage = Math.floor(enemy.maxHealth * 0.15); // 15% max HP
+                    const pulseDamage = flatDamage + percentDamage;
+                    enemy.health -= pulseDamage;
+
+                    // Create damage number
+                    damageNumbers.push({
+                        x: enemy.x + (Math.random() - 0.5) * 20,
+                        y: enemy.y - 15,
+                        value: pulseDamage,
+                        timer: 0.6,
+                        color: CYBER.magenta
+                    });
+
+                    // Mark for death if health depleted
+                    if (enemy.health <= 0) {
+                        enemiesToKill.push(enemy);
+                    }
+                }
+            }
+
+            // Kill enemies after iteration is complete
+            for (const enemy of enemiesToKill) {
+                enemy.die();
+            }
+        }
+
+        // End pulse when timer runs out
+        if (core.pulseTimer <= 0) {
+            core.pulseActive = false;
+            core.pulseTimer = 0;
+        }
+    }
+
     // Find target
     core.target = null;
     let closestDist = core.attackRange;
@@ -1481,19 +1545,62 @@ function drawCore() {
     ctx.arc(core.x, core.y, core.attackRange, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Animated scanning dashes
+    // Animated scanning dashes - becomes LASER RING when pulse active
     const numDashes = 24;
-    for (let i = 0; i < numDashes; i++) {
-        const angle = (i / numDashes) * Math.PI * 2 + core.pulseTime * 0.5;
-        const r1 = core.attackRange - 5;
-        const r2 = core.attackRange + 5;
-        const dashAlpha = 0.3 + Math.sin(angle * 3 + time * 2) * 0.2;
-        ctx.strokeStyle = `rgba(0, 240, 255, ${dashAlpha})`;
-        ctx.lineWidth = 1.5;
+    const isPulseActive = core.pulseActive && core.pulseTimer > 0;
+
+    if (isPulseActive) {
+        // PULSE ACTIVE: Draw intense laser ring
+        const pulseIntensity = 0.7 + Math.sin(time * 15) * 0.3;
+
+        // Outer glow
+        ctx.strokeStyle = `rgba(255, 0, 170, ${0.4 * pulseIntensity})`;
+        ctx.lineWidth = 20;
         ctx.beginPath();
-        ctx.moveTo(core.x + Math.cos(angle) * r1, core.y + Math.sin(angle) * r1);
-        ctx.lineTo(core.x + Math.cos(angle) * r2, core.y + Math.sin(angle) * r2);
+        ctx.arc(core.x, core.y, core.attackRange, 0, Math.PI * 2);
         ctx.stroke();
+
+        // Main laser ring
+        ctx.strokeStyle = `rgba(255, 100, 200, ${0.9 * pulseIntensity})`;
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.arc(core.x, core.y, core.attackRange, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Inner bright core
+        ctx.strokeStyle = `rgba(255, 255, 255, ${0.8 * pulseIntensity})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(core.x, core.y, core.attackRange, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Spinning energy dashes (faster when active)
+        for (let i = 0; i < numDashes; i++) {
+            const angle = (i / numDashes) * Math.PI * 2 + core.pulseTime * 2; // Faster spin
+            const r1 = core.attackRange - 15;
+            const r2 = core.attackRange + 15;
+            const dashAlpha = 0.6 + Math.sin(angle * 3 + time * 8) * 0.4;
+            ctx.strokeStyle = `rgba(255, 200, 255, ${dashAlpha})`;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(core.x + Math.cos(angle) * r1, core.y + Math.sin(angle) * r1);
+            ctx.lineTo(core.x + Math.cos(angle) * r2, core.y + Math.sin(angle) * r2);
+            ctx.stroke();
+        }
+    } else {
+        // Normal scanning dashes
+        for (let i = 0; i < numDashes; i++) {
+            const angle = (i / numDashes) * Math.PI * 2 + core.pulseTime * 0.5;
+            const r1 = core.attackRange - 5;
+            const r2 = core.attackRange + 5;
+            const dashAlpha = 0.3 + Math.sin(angle * 3 + time * 2) * 0.2;
+            ctx.strokeStyle = `rgba(0, 240, 255, ${dashAlpha})`;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(core.x + Math.cos(angle) * r1, core.y + Math.sin(angle) * r1);
+            ctx.lineTo(core.x + Math.cos(angle) * r2, core.y + Math.sin(angle) * r2);
+            ctx.stroke();
+        }
     }
 
     // Hex grid pattern around core
@@ -1694,6 +1801,9 @@ function updateUI() {
     if (nukeCountSpan) nukeCountSpan.textContent = `[${core.nukeCharges}]`;
     nukeBtn.disabled = core.nukeCharges <= 0 || enemies.length === 0;
 
+    // Pulse button (duration-based like other abilities)
+    updateAbilityButton('pulseBtn', core.pulseActive, core.pulseTimer, core.pulseCharges, 'PULSE');
+
     // Start wave button
     const startBtn = document.getElementById('startWaveBtn');
     if (game.waveInProgress || game.enemiesAlive > 0) {
@@ -1824,6 +1934,11 @@ function updateUpgradePanel() {
     } else {
         shieldCostSpan.textContent = `$${game.shieldCost}`;
     }
+
+    // Pulse purchase button
+    const pulseBtn = document.getElementById('buyPulseBtn');
+    pulseBtn.disabled = game.money < game.pulseCost;
+    pulseBtn.classList.toggle('affordable', game.money >= game.pulseCost);
 }
 
 function showUpgradePanel() {
@@ -2150,6 +2265,17 @@ document.getElementById('nukeBtn').addEventListener('click', () => {
     }
 });
 
+document.getElementById('pulseBtn').addEventListener('click', () => {
+    if (core.pulseCharges > 0 && !core.pulseActive && enemies.length > 0) {
+        AudioManager.playAbility();
+        core.pulseCharges--;
+        // Activate laser ring for 5 seconds
+        core.pulseActive = true;
+        core.pulseTimer = 5; // 5 second duration
+        core.pulseDamageTimer = 0; // Start damaging immediately
+    }
+});
+
 document.getElementById('damageBtn').addEventListener('click', () => {
     if (game.money >= game.damageCost) {
         AudioManager.playUpgrade();
@@ -2239,6 +2365,15 @@ document.getElementById('buyShieldBtn').addEventListener('click', () => {
     }
 });
 
+document.getElementById('buyPulseBtn').addEventListener('click', () => {
+    if (game.money >= game.pulseCost) {
+        AudioManager.playUpgrade();
+        game.money -= game.pulseCost;
+        core.pulseCharges++;
+        updateUpgradePanel();
+    }
+});
+
 document.getElementById('closeBtn').addEventListener('click', () => {
     AudioManager.playClick();
     hideUpgradePanel();
@@ -2295,6 +2430,7 @@ document.getElementById('restartBtn').addEventListener('click', () => {
     game.critCost = 60;
     game.nukeCost = 500;
     game.shieldCost = 400;
+    game.pulseCost = 300;
 
     // Reset upgrade levels
     upgradeLevels.damage = 1;
@@ -2317,6 +2453,10 @@ document.getElementById('restartBtn').addEventListener('click', () => {
     core.critTimer = 0;
     core.critCharges = 0;
     core.nukeCharges = 0;
+    core.pulseCharges = 0;
+    core.pulseActive = false;
+    core.pulseTimer = 0;
+    core.pulseDamageTimer = 0;
     core.shootTimer = 0;
 
     // Clear entities

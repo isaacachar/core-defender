@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>CORE::DEFENSE // 2084</title>
+    <title>Iron Dome</title>
 
     <!-- PWA Meta Tags -->
-    <meta name="description" content="Defend your core against endless waves of rogue AI">
+    <meta name="description" content="Defend your base against endless waves of enemies in this tower defense game">
     <meta name="theme-color" content="#0a0a14">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -296,6 +296,7 @@
             color: var(--text-dim);
         }
 
+
         @keyframes pulse-glow {
             0%, 100% { box-shadow: var(--glow-cyan), inset 0 0 20px rgba(0, 240, 255, 0.2); }
             50% { box-shadow: 0 0 30px rgba(0, 240, 255, 0.7), inset 0 0 30px rgba(0, 240, 255, 0.3); }
@@ -323,7 +324,7 @@
             font-family: 'Orbitron', sans-serif;
             font-size: clamp(13px, 3.5vw, 16px);
             font-weight: 700;
-            min-height: 58px;
+            min-height: 54px;
             min-width: 160px;
             text-transform: uppercase;
             letter-spacing: 2px;
@@ -374,7 +375,7 @@
             font-family: 'Orbitron', sans-serif;
             font-size: clamp(14px, 4vw, 18px);
             font-weight: 700;
-            min-height: 58px;
+            min-height: 54px;
             min-width: 65px;
             transition: all 0.15s;
         }
@@ -394,7 +395,7 @@
             font-size: 20px;
             font-weight: 700;
             text-shadow: 0 0 10px var(--yellow);
-            min-height: 58px;
+            min-height: 54px;
             min-width: 65px;
             transition: all 0.15s;
         }
@@ -515,7 +516,7 @@
             border-radius: 4px;
             font-size: clamp(12px, 3.2vw, 14px);
             font-weight: 500;
-            min-height: 62px;
+            min-height: 54px;
             text-align: left;
             transition: all 0.15s;
             position: relative;
@@ -1132,6 +1133,10 @@
                         <span>NUKE</span>
                         <span class="count">[0]</span>
                     </button>
+                    <button class="abilityBtn" id="pulseBtn" disabled>
+                        <span>PULSE</span>
+                        <span class="count">[0]</span>
+                    </button>
                 </div>
 
                 <!-- Main Action Row -->
@@ -1218,6 +1223,11 @@
                             <span class="icon">♥</span>
                             <span>Life</span>
                             <span class="cost">$400</span>
+                        </button>
+                        <button class="abilityPurchaseBtn" id="buyPulseBtn">
+                            <span class="icon">◎</span>
+                            <span>Pulse</span>
+                            <span class="cost">$300</span>
                         </button>
                     </div>
                 </div>
