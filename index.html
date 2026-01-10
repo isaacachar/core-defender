@@ -146,6 +146,11 @@
             text-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
         }
 
+        #enemyCountLabel {
+            color: var(--red);
+            text-shadow: 0 0 10px rgba(255, 0, 68, 0.5);
+        }
+
         #waveLabel {
             color: var(--text);
             text-shadow: 0 0 10px rgba(224, 224, 255, 0.3);
@@ -1093,6 +1098,7 @@
                 <span class="statBox" id="moneyLabel">$0</span>
                 <span class="statBox" id="livesLabel">♥ 0</span>
                 <span class="statBox" id="waveLabel">WAVE::00</span>
+                <span class="statBox" id="enemyCountLabel">☠ 0</span>
                 <span class="statBox" id="highScoreLabel">BEST::0</span>
             </div>
 
@@ -1102,8 +1108,8 @@
 
             <!-- Top Right - Audio Controls -->
             <div id="topRightControls">
-                <button class="smallBtn" id="musicBtn">&#9835;</button>
-                <button class="smallBtn" id="sfxBtn">&#128266;</button>
+                <button class="smallBtn" id="musicBtn">♪</button>
+                <button class="smallBtn" id="sfxBtn">◈</button>
             </div>
 
             <!-- Bottom Area -->
@@ -1132,7 +1138,7 @@
                 <div id="actionRow">
                     <button id="startWaveBtn">DEPLOY</button>
                     <button id="pauseBtn">⏸</button>
-                    <button id="speedBtn">▶</button>
+                    <button id="speedBtn">&gt;</button>
                 </div>
             </div>
 

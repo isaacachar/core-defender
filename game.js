@@ -1679,6 +1679,10 @@ function updateUI() {
     document.getElementById('livesLabel').textContent = `♥ ${lives}`;
     document.getElementById('highScoreLabel').textContent = `Best: ${SaveManager.data.highScore}`;
 
+    // Enemy count (enemies alive + enemies still to spawn)
+    const totalEnemiesLeft = game.enemiesAlive + game.enemiesToSpawn;
+    document.getElementById('enemyCountLabel').textContent = `☠ ${totalEnemiesLeft}`;
+
     // Ability buttons
     updateAbilityButton('pierceBtn', core.pierceActive, core.pierceTimer, core.pierceCharges, 'PIERCE');
     updateAbilityButton('frostBtn', core.frostActive, core.frostTimer, core.frostCharges, 'FROST');
@@ -1850,7 +1854,7 @@ function showGameOver(won) {
 
     panel.style.display = 'block';
     game.speedMultiplier = 1;
-    document.getElementById('speedBtn').textContent = '▶';
+    document.getElementById('speedBtn').textContent = '>';
     AudioManager.playGameOver();
     AudioManager.stopMusic();
 }
@@ -2088,13 +2092,13 @@ document.getElementById('speedBtn').addEventListener('click', () => {
     // Cycle through 1x -> 2x -> 3x -> 1x
     if (game.speedMultiplier === 1) {
         game.speedMultiplier = 2;
-        document.getElementById('speedBtn').textContent = '▶▶';
+        document.getElementById('speedBtn').textContent = '>>';
     } else if (game.speedMultiplier === 2) {
         game.speedMultiplier = 3;
-        document.getElementById('speedBtn').textContent = '▶▶▶';
+        document.getElementById('speedBtn').textContent = '>>>';
     } else {
         game.speedMultiplier = 1;
-        document.getElementById('speedBtn').textContent = '▶';
+        document.getElementById('speedBtn').textContent = '>';
     }
 });
 
@@ -2330,7 +2334,7 @@ document.getElementById('restartBtn').addEventListener('click', () => {
     hideUpgradePanel();
 
     // Reset UI
-    document.getElementById('speedBtn').textContent = '▶';
+    document.getElementById('speedBtn').textContent = '>';
     document.getElementById('pauseBtn').textContent = '⏸';
     document.getElementById('pauseBtn').classList.remove('paused');
     document.getElementById('waveLabel').textContent = 'Wave 0';
