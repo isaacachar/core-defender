@@ -1373,7 +1373,7 @@ function updateCore(dt) {
         const dx = enemy.x - core.x;
         const dy = enemy.y - core.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < closestDist) {
+        if (dist <= closestDist) {
             closestDist = dist;
             core.target = enemy;
         }
@@ -2083,10 +2083,10 @@ document.getElementById('pauseBtn').addEventListener('click', () => {
     game.paused = !game.paused;
     const btn = document.getElementById('pauseBtn');
     if (game.paused) {
-        btn.textContent = '▶';
+        btn.textContent = '>';
         btn.classList.add('paused');
     } else {
-        btn.textContent = '⏸';
+        btn.textContent = '||';
         btn.classList.remove('paused');
     }
 });
@@ -2181,6 +2181,7 @@ document.getElementById('rangeBtn').addEventListener('click', () => {
         AudioManager.playUpgrade();
         game.money -= game.rangeCost;
         core.attackRange = Math.min(core.attackRange + 25, MAX_RANGE);
+        console.log('Range upgraded to:', core.attackRange);
         game.rangeCost = Math.floor(game.rangeCost * 1.6);
         upgradeLevels.range++;
         updateUpgradePanel();
@@ -2339,7 +2340,7 @@ document.getElementById('restartBtn').addEventListener('click', () => {
 
     // Reset UI
     document.getElementById('speedBtn').textContent = '>';
-    document.getElementById('pauseBtn').textContent = '⏸';
+    document.getElementById('pauseBtn').textContent = '||';
     document.getElementById('pauseBtn').classList.remove('paused');
     document.getElementById('waveLabel').textContent = 'Wave 0';
     document.getElementById('waveLabel').classList.remove('boss', 'swarm');
