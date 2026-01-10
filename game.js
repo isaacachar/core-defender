@@ -565,6 +565,199 @@ let enemies = [];
 let bullets = [];
 let explosions = [];
 let damageNumbers = [];
+let powerUps = [];
+
+// Power-up types with their properties
+const POWERUP_TYPES = {
+    money: {
+        name: 'CREDITS',
+        color: CYBER.yellow,
+        glowColor: '#ffff00',
+        chance: 0.40,
+        icon: '$'
+    },
+    shield: {
+        name: 'SHIELD',
+        color: CYBER.cyan,
+        glowColor: '#00ffff',
+        chance: 0.25,
+        icon: '◇'
+    },
+    overcharge: {
+        name: 'OVERCHARGE',
+        color: CYBER.magenta,
+        glowColor: '#ff00ff',
+        chance: 0.20,
+        icon: '⚡'
+    },
+    nuke: {
+        name: 'NUKE',
+        color: CYBER.red,
+        glowColor: '#ff0000',
+        chance: 0.10,
+        icon: '✹'
+    },
+    repair: {
+        name: 'REPAIR',
+        color: CYBER.green,
+        glowColor: '#00ff00',
+        chance: 0.05,
+        icon: '+'
+    }
+};
+
+// Core shield state
+let coreShield = 0; // Number of hits the shield can absorb
+let overchargeTimer = 0;
+
+// ==================
+// POWERUP CLASS
+// ==================
+class PowerUp {
+    constructor(x, y, type) {
+        this.x = x;
+        this.y = y;
+        this.type = type;
+        this.config = POWERUP_TYPES[type];
+        this.age = 0;
+        this.lifetime = 12; // seconds before despawn
+        this.size = 14;
+        this.pulseTime = Math.random() * Math.PI * 2;
+        this.collected = false;
+        this.collectAnim = 0;
+    }
+
+    update(dt) {
+        this.age += dt;
+        this.pulseTime += dt * 4;
+
+        // Slowly drift toward center
+        const dx = core.x - this.x;
+        const dy = core.y - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 30) {
+            this.x += (dx / dist) * 15 * dt;
+            this.y += (dy / dist) * 15 * dt;
+        }
+
+        // Auto-collect if very close to core
+        if (dist < 25) {
+            this.collect();
+        }
+
+        // Despawn after lifetime
+        if (this.age >= this.lifetime) {
+            return false;
+        }
+
+        return !this.collected;
+    }
+
+    collect() {
+        if (this.collected) return;
+        this.collected = true;
+
+        // Apply power-up effect
+        switch (this.type) {
+            case 'money':
+                game.money += 75;
+                spawnDamageNumber(this.x, this.y - 10, 75, false, false);
+                break;
+            case 'shield':
+                coreShield = Math.min(coreShield + 1, 3); // Max 3 shields
+                break;
+            case 'overcharge':
+                overchargeTimer = 6; // 6 seconds of 2x fire rate
+                break;
+            case 'nuke':
+                // Kill all enemies on screen
+                for (const enemy of [...enemies]) {
+                    enemy.die();
+                }
+                break;
+            case 'repair':
+                // Give money if no shield, otherwise add shield
+                if (coreShield > 0) {
+                    coreShield = Math.min(coreShield + 1, 3);
+                } else {
+                    game.money += 50;
+                    spawnDamageNumber(this.x, this.y - 10, 50, false, false);
+                }
+                break;
+        }
+
+        AudioManager.playUpgrade();
+    }
+
+    draw() {
+        const pulse = Math.sin(this.pulseTime) * 0.15 + 1;
+        const fadeOut = this.age > this.lifetime - 2 ? (this.lifetime - this.age) / 2 : 1;
+
+        ctx.globalAlpha = fadeOut;
+
+        // Outer glow
+        ctx.globalAlpha = 0.3 * fadeOut;
+        ctx.fillStyle = this.config.glowColor;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size * 1.5 * pulse, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Hexagon background
+        ctx.globalAlpha = 0.8 * fadeOut;
+        ctx.fillStyle = CYBER.bgDark;
+        ctx.strokeStyle = this.config.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const angle = (i / 6) * Math.PI * 2 - Math.PI / 2;
+            const hx = this.x + Math.cos(angle) * this.size * pulse;
+            const hy = this.y + Math.sin(angle) * this.size * pulse;
+            if (i === 0) ctx.moveTo(hx, hy);
+            else ctx.lineTo(hx, hy);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Icon
+        ctx.globalAlpha = fadeOut;
+        ctx.fillStyle = this.config.color;
+        ctx.font = `bold ${12 * pulse}px 'Orbitron', sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(this.config.icon, this.x, this.y);
+
+        ctx.globalAlpha = 1;
+    }
+
+    // Check if point is inside power-up (for tap detection)
+    containsPoint(px, py) {
+        const dx = px - this.x;
+        const dy = py - this.y;
+        return Math.sqrt(dx * dx + dy * dy) < this.size * 1.5;
+    }
+}
+
+// Spawn a random power-up
+function spawnPowerUp(x, y) {
+    // 10% base chance to spawn
+    if (Math.random() > 0.10) return;
+
+    // Determine type based on weighted chances
+    const roll = Math.random();
+    let cumulative = 0;
+    let selectedType = 'money';
+
+    for (const [type, config] of Object.entries(POWERUP_TYPES)) {
+        cumulative += config.chance;
+        if (roll < cumulative) {
+            selectedType = type;
+            break;
+        }
+    }
+
+    powerUps.push(new PowerUp(x, y, selectedType));
+}
 
 // ==================
 // ENEMY CLASS
@@ -683,8 +876,25 @@ class Enemy {
 
         // Check if reached core
         if (dist < 20) {
-            game.gameOver = true;
-            showGameOver(false);
+            // Shield absorbs the hit
+            if (coreShield > 0) {
+                coreShield--;
+                AudioManager.playShieldBlock();
+                // Kill this enemy
+                game.enemiesAlive = Math.max(0, game.enemiesAlive - 1);
+                const idx = enemies.indexOf(this);
+                if (idx > -1) enemies.splice(idx, 1);
+                // Spawn explosion
+                explosions.push({
+                    x: this.x,
+                    y: this.y,
+                    time: 0,
+                    maxTime: 0.4
+                });
+            } else {
+                game.gameOver = true;
+                showGameOver(false);
+            }
         }
     }
 
@@ -718,6 +928,9 @@ class Enemy {
         game.enemiesAlive = Math.max(0, game.enemiesAlive - 1);
         AudioManager.playExplosion();
         SaveManager.addEnemyKilled();
+
+        // Chance to spawn power-up
+        spawnPowerUp(this.x, this.y);
 
         // Splitter spawns children
         if (this.canSplit && this.splitCount > 0) {
@@ -1256,7 +1469,9 @@ function updateCore(dt) {
     core.shootTimer -= dt;
     if (core.shootTimer <= 0 && core.target) {
         shoot();
-        core.shootTimer = 1 / core.fireRate;
+        // Overcharge doubles fire rate
+        const fireRateMult = overchargeTimer > 0 ? 2 : 1;
+        core.shootTimer = 1 / (core.fireRate * fireRateMult);
     }
 }
 
@@ -1806,6 +2021,18 @@ function gameLoop(currentTime) {
 
         updateExplosions(dt);
         updateDamageNumbers(dt);
+
+        // Update power-ups
+        for (let i = powerUps.length - 1; i >= 0; i--) {
+            if (!powerUps[i].update(dt)) {
+                powerUps.splice(i, 1);
+            }
+        }
+
+        // Update overcharge timer
+        if (overchargeTimer > 0) {
+            overchargeTimer -= dt;
+        }
     }
 
     // Ensure canvas is sized (will always have valid dimensions now)
@@ -1834,6 +2061,42 @@ function gameLoop(currentTime) {
 
     drawExplosions();
     drawDamageNumbers();
+
+    // Draw power-ups
+    for (const powerUp of powerUps) {
+        powerUp.draw();
+    }
+
+    // Draw shield indicator around core
+    if (coreShield > 0) {
+        const shieldPulse = Math.sin(Date.now() * 0.005) * 0.2 + 0.8;
+        ctx.strokeStyle = `rgba(0, 240, 255, ${0.6 * shieldPulse})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(core.x, core.y, 28, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Shield pips
+        for (let i = 0; i < coreShield; i++) {
+            const pipAngle = (i / 3) * Math.PI * 2 - Math.PI / 2;
+            const pipX = core.x + Math.cos(pipAngle) * 28;
+            const pipY = core.y + Math.sin(pipAngle) * 28;
+            ctx.fillStyle = CYBER.cyan;
+            ctx.beginPath();
+            ctx.arc(pipX, pipY, 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    // Draw overcharge indicator
+    if (overchargeTimer > 0) {
+        const overPulse = Math.sin(Date.now() * 0.015) * 0.3 + 0.7;
+        ctx.strokeStyle = `rgba(255, 0, 170, ${overPulse})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(core.x, core.y, 35, 0, Math.PI * 2);
+        ctx.stroke();
+    }
 
     ctx.restore();
 
@@ -2010,6 +2273,46 @@ document.getElementById('sfxBtn').addEventListener('click', () => {
     }
 });
 
+// Convert screen coordinates to game world coordinates
+function screenToWorld(screenX, screenY) {
+    return {
+        x: (screenX - gameOffsetX) / gameScale,
+        y: (screenY - gameOffsetY) / gameScale
+    };
+}
+
+// Handle tap/click on canvas for power-up collection
+function handleCanvasTap(screenX, screenY) {
+    if (game.state !== 'playing') return;
+
+    const worldPos = screenToWorld(screenX, screenY);
+
+    // Check if tap hit any power-up
+    for (let i = powerUps.length - 1; i >= 0; i--) {
+        if (powerUps[i].containsPoint(worldPos.x, worldPos.y)) {
+            powerUps[i].collect();
+            powerUps.splice(i, 1);
+            return; // Only collect one power-up per tap
+        }
+    }
+}
+
+// Canvas touch handler
+canvas.addEventListener('touchstart', (e) => {
+    if (game.state !== 'playing') return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    handleCanvasTap(touch.clientX - rect.left, touch.clientY - rect.top);
+}, { passive: false });
+
+// Canvas click handler
+canvas.addEventListener('click', (e) => {
+    if (game.state !== 'playing') return;
+    const rect = canvas.getBoundingClientRect();
+    handleCanvasTap(e.clientX - rect.left, e.clientY - rect.top);
+});
+
 document.getElementById('restartBtn').addEventListener('click', () => {
     AudioManager.playClick();
     AudioManager.startMusic();
@@ -2060,6 +2363,11 @@ document.getElementById('restartBtn').addEventListener('click', () => {
     bullets = [];
     explosions = [];
     damageNumbers = [];
+    powerUps = [];
+
+    // Reset power-up state
+    coreShield = 0;
+    overchargeTimer = 0;
 
     // Hide panels
     document.getElementById('gameOverPanel').style.display = 'none';
