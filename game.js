@@ -385,7 +385,8 @@ const SaveManager = {
         totalGamesPlayed: 0,
         musicEnabled: true,
         sfxEnabled: true,
-        tutorialSeen: false
+        tutorialSeen: false,
+        creditDropsNotified: false
     },
 
     data: null,
@@ -574,6 +575,11 @@ let damageNumbers = [];
 // Lives system (buyable shields)
 let lives = 0; // Start with 0, can buy up to 3
 
+// Credit drops (unlocked at wave 15)
+let creditDrops = [];
+const CREDIT_DROP_CHANCE = 0.15; // 15% chance per enemy kill
+const CREDIT_DROP_WAVE = 15; // Unlocks at wave 15
+
 // ==================
 // ENEMY CLASS
 // ==================
@@ -743,6 +749,9 @@ class Enemy {
         game.enemiesAlive = Math.max(0, game.enemiesAlive - 1);
         AudioManager.playExplosion();
         SaveManager.addEnemyKilled();
+
+        // Chance to spawn credit drop (wave 15+)
+        spawnCreditDrop(this.x, this.y);
 
         // Splitter spawns children
         if (this.canSplit && this.splitCount > 0) {
@@ -1027,6 +1036,95 @@ class Bullet {
 }
 
 // ==================
+// CREDIT DROP CLASS
+// ==================
+class CreditDrop {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.value = 25 + Math.floor(Math.random() * 26); // 25-50 credits
+        this.lifetime = 8; // Seconds before despawn
+        this.age = 0;
+        this.collected = false;
+        this.pulseTime = Math.random() * Math.PI * 2;
+        this.bobOffset = Math.random() * Math.PI * 2;
+    }
+
+    update(dt) {
+        this.age += dt;
+        this.pulseTime += dt * 4;
+        this.bobOffset += dt * 3;
+        return this.age < this.lifetime && !this.collected;
+    }
+
+    draw() {
+        const fadeStart = this.lifetime - 2;
+        let alpha = 1;
+        if (this.age > fadeStart) {
+            alpha = 1 - (this.age - fadeStart) / 2;
+        }
+
+        const pulse = Math.sin(this.pulseTime) * 0.2 + 0.8;
+        const bob = Math.sin(this.bobOffset) * 3;
+
+        ctx.save();
+        ctx.translate(this.x, this.y + bob);
+        ctx.globalAlpha = alpha;
+
+        // Outer glow
+        ctx.fillStyle = CYBER.green;
+        ctx.globalAlpha = alpha * 0.3 * pulse;
+        ctx.beginPath();
+        ctx.arc(0, 0, 14 * pulse, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Inner circle
+        ctx.globalAlpha = alpha * 0.8;
+        ctx.fillStyle = '#003311';
+        ctx.beginPath();
+        ctx.arc(0, 0, 10, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Border
+        ctx.strokeStyle = CYBER.green;
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        ctx.arc(0, 0, 10, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // $ symbol
+        ctx.fillStyle = CYBER.green;
+        ctx.font = "bold 12px 'Orbitron', sans-serif";
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('$', 0, 0);
+
+        ctx.restore();
+    }
+
+    checkCollection(tapX, tapY) {
+        const dx = tapX - this.x;
+        const dy = tapY - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 25) {
+            this.collected = true;
+            game.money += this.value;
+            AudioManager.playUpgrade();
+            spawnDamageNumber(this.x, this.y - 15, this.value, false, false);
+            return true;
+        }
+        return false;
+    }
+}
+
+function spawnCreditDrop(x, y) {
+    if (game.currentWave >= CREDIT_DROP_WAVE && Math.random() < CREDIT_DROP_CHANCE) {
+        creditDrops.push(new CreditDrop(x, y));
+    }
+}
+
+// ==================
 // DAMAGE NUMBERS
 // ==================
 function spawnDamageNumber(x, y, amount, isCrit, isBlocked) {
@@ -1167,6 +1265,13 @@ function startWave(waveNum) {
 
     isBossWave = (waveNum % 5 === 0) && waveNum > 0;
     isSwarmWave = (waveNum % 3 === 0) && waveNum > 2 && !isBossWave;
+
+    // Show credit drops notification at wave 15 (one time only)
+    if (waveNum === CREDIT_DROP_WAVE && !SaveManager.data.creditDropsNotified) {
+        showCreditDropNotification();
+        SaveManager.data.creditDropsNotified = true;
+        SaveManager.save();
+    }
 
     // Play wave start sound
     if (isBossWave) {
@@ -1745,7 +1850,7 @@ function showGameOver(won) {
 
     panel.style.display = 'block';
     game.speedMultiplier = 1;
-    document.getElementById('speedBtn').textContent = '1x';
+    document.getElementById('speedBtn').textContent = '▶';
     AudioManager.playGameOver();
     AudioManager.stopMusic();
 }
@@ -1863,6 +1968,13 @@ function gameLoop(currentTime) {
 
         updateExplosions(dt);
         updateDamageNumbers(dt);
+
+        // Update credit drops
+        for (let i = creditDrops.length - 1; i >= 0; i--) {
+            if (!creditDrops[i].update(dt)) {
+                creditDrops.splice(i, 1);
+            }
+        }
     }
 
     // Ensure canvas is sized (will always have valid dimensions now)
@@ -1891,6 +2003,11 @@ function gameLoop(currentTime) {
 
     drawExplosions();
     drawDamageNumbers();
+
+    // Draw credit drops
+    for (const drop of creditDrops) {
+        drop.draw();
+    }
 
     // Draw lives indicator around core
     if (lives > 0) {
@@ -1968,8 +2085,17 @@ document.getElementById('pauseBtn').addEventListener('click', () => {
 
 document.getElementById('speedBtn').addEventListener('click', () => {
     AudioManager.playClick();
-    game.speedMultiplier = game.speedMultiplier === 1 ? 2 : 1;
-    document.getElementById('speedBtn').textContent = `${game.speedMultiplier}x`;
+    // Cycle through 1x -> 2x -> 3x -> 1x
+    if (game.speedMultiplier === 1) {
+        game.speedMultiplier = 2;
+        document.getElementById('speedBtn').textContent = '▶▶';
+    } else if (game.speedMultiplier === 2) {
+        game.speedMultiplier = 3;
+        document.getElementById('speedBtn').textContent = '▶▶▶';
+    } else {
+        game.speedMultiplier = 1;
+        document.getElementById('speedBtn').textContent = '▶';
+    }
 });
 
 document.getElementById('pierceBtn').addEventListener('click', () => {
@@ -2194,6 +2320,7 @@ document.getElementById('restartBtn').addEventListener('click', () => {
     bullets = [];
     explosions = [];
     damageNumbers = [];
+    creditDrops = [];
 
     // Reset lives
     lives = 0;
@@ -2203,7 +2330,7 @@ document.getElementById('restartBtn').addEventListener('click', () => {
     hideUpgradePanel();
 
     // Reset UI
-    document.getElementById('speedBtn').textContent = '1x';
+    document.getElementById('speedBtn').textContent = '▶';
     document.getElementById('pauseBtn').textContent = '⏸';
     document.getElementById('pauseBtn').classList.remove('paused');
     document.getElementById('waveLabel').textContent = 'Wave 0';
@@ -2244,6 +2371,15 @@ function hideTutorial() {
     SaveManager.save();
 }
 
+function showCreditDropNotification() {
+    const notify = document.getElementById('creditDropNotify');
+    notify.classList.remove('hidden');
+    // Auto-hide after 3 seconds
+    setTimeout(() => {
+        notify.classList.add('hidden');
+    }, 3000);
+}
+
 function startGame() {
     hideTitleScreen();
     AudioManager.init();
@@ -2273,6 +2409,35 @@ document.getElementById('tutorialBtn').addEventListener('touchend', (e) => {
     e.preventDefault();
     AudioManager.playClick();
     hideTutorial();
+});
+
+// Canvas tap handler for credit drops
+function handleCanvasTap(clientX, clientY) {
+    // Convert screen coordinates to game coordinates
+    const rect = canvas.getBoundingClientRect();
+    const screenX = clientX - rect.left;
+    const screenY = clientY - rect.top;
+
+    // Convert to game world coordinates
+    const gameX = (screenX - gameOffsetX) / gameScale;
+    const gameY = (screenY - gameOffsetY) / gameScale;
+
+    // Check credit drops
+    for (const drop of creditDrops) {
+        if (drop.checkCollection(gameX, gameY)) {
+            break;
+        }
+    }
+}
+
+canvas.addEventListener('click', (e) => {
+    handleCanvasTap(e.clientX, e.clientY);
+});
+
+canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length > 0) {
+        handleCanvasTap(e.touches[0].clientX, e.touches[0].clientY);
+    }
 });
 
 // Show title screen on load
