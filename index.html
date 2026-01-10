@@ -363,6 +363,33 @@
             transform: scale(0.96);
         }
 
+        #pauseBtn {
+            background: linear-gradient(180deg, rgba(40, 40, 0, 0.9) 0%, rgba(30, 30, 0, 0.95) 100%);
+            border: 2px solid var(--yellow);
+            color: var(--yellow);
+            padding: 16px 20px;
+            border-radius: 4px;
+            font-size: 20px;
+            font-weight: 700;
+            text-shadow: 0 0 10px var(--yellow);
+            min-height: 58px;
+            min-width: 65px;
+            transition: all 0.15s;
+        }
+
+        #pauseBtn:active {
+            background: rgba(240, 255, 0, 0.3);
+            box-shadow: 0 0 15px rgba(240, 255, 0, 0.5);
+            transform: scale(0.96);
+        }
+
+        #pauseBtn.paused {
+            background: linear-gradient(180deg, rgba(0, 60, 40, 0.9) 0%, rgba(0, 40, 30, 0.95) 100%);
+            border-color: var(--green);
+            color: var(--green);
+            text-shadow: 0 0 10px var(--green);
+        }
+
         /* Panels */
         .panel {
             position: absolute;
@@ -916,6 +943,7 @@
                 <!-- Main Action Row -->
                 <div id="actionRow">
                     <button id="startWaveBtn">DEPLOY</button>
+                    <button id="pauseBtn">⏸</button>
                     <button id="speedBtn">1X</button>
                 </div>
             </div>

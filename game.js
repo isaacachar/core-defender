@@ -514,6 +514,7 @@ const game = {
     enemiesToSpawn: 0,
     waveInProgress: false,
     gameOver: false,
+    paused: false,
     speedMultiplier: 1,
     countdown: 0,
     countdownActive: false,
@@ -1968,10 +1969,14 @@ function gameLoop(currentTime) {
         return;
     }
 
-    // Apply speed multiplier
-    dt *= game.speedMultiplier;
+    // Apply speed multiplier (0 if paused)
+    if (game.paused) {
+        dt = 0;
+    } else {
+        dt *= game.speedMultiplier;
+    }
 
-    if (!game.gameOver) {
+    if (!game.gameOver && !game.paused) {
         // Spawning
         if (game.waveInProgress && game.enemiesToSpawn > 0) {
             spawnTimer += dt;
@@ -2136,6 +2141,19 @@ document.getElementById('startWaveBtn').addEventListener('click', handleStartWav
 document.getElementById('startWaveBtn').addEventListener('touchend', (e) => {
     e.preventDefault();
     handleStartWave();
+});
+
+document.getElementById('pauseBtn').addEventListener('click', () => {
+    AudioManager.playClick();
+    game.paused = !game.paused;
+    const btn = document.getElementById('pauseBtn');
+    if (game.paused) {
+        btn.textContent = '▶';
+        btn.classList.add('paused');
+    } else {
+        btn.textContent = '⏸';
+        btn.classList.remove('paused');
+    }
 });
 
 document.getElementById('speedBtn').addEventListener('click', () => {
@@ -2323,6 +2341,7 @@ document.getElementById('restartBtn').addEventListener('click', () => {
     game.enemiesToSpawn = 0;
     game.waveInProgress = false;
     game.gameOver = false;
+    game.paused = false;
     game.speedMultiplier = 1;
     game.countdown = 0;
     game.countdownActive = false;
@@ -2375,6 +2394,8 @@ document.getElementById('restartBtn').addEventListener('click', () => {
 
     // Reset UI
     document.getElementById('speedBtn').textContent = '1x';
+    document.getElementById('pauseBtn').textContent = '⏸';
+    document.getElementById('pauseBtn').classList.remove('paused');
     document.getElementById('waveLabel').textContent = 'Wave 0';
     document.getElementById('waveLabel').classList.remove('boss', 'swarm');
 });
