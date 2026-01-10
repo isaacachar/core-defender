@@ -1,12 +1,13 @@
 // Service Worker for Iron Dome
-const CACHE_NAME = 'iron-dome-v5';
+const CACHE_NAME = 'iron-dome-v6';
 const ASSETS = [
     '/',
     '/index.html',
     '/game.js',
     '/manifest.json',
     '/icon-192.png',
-    '/icon-512.png'
+    '/icon-512.png',
+    '/apple-touch-icon.png'
 ];
 
 // Install - cache all assets
