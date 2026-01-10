@@ -1,7 +1,7 @@
 {
-    "name": "Core Defender",
-    "short_name": "Core Defender",
-    "description": "Defend your core against endless waves of enemies",
+    "name": "Iron Dome",
+    "short_name": "Iron Dome",
+    "description": "Defend your base against endless waves of enemies",
     "start_url": "/",
     "display": "fullscreen",
     "orientation": "portrait",

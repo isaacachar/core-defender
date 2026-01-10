@@ -1,4 +1,4 @@
-// Core Defender - JavaScript Port
+// Iron Dome - JavaScript Tower Defense Game
 // ================================
 // CYBERPUNK VISUAL THEME
 
@@ -376,7 +376,7 @@ const AudioManager = {
 // SAVE/LOAD SYSTEM
 // ==================
 const SaveManager = {
-    storageKey: 'coreDefenderSave',
+    storageKey: 'ironDomeSave',
 
     defaultData: {
         highScore: 0,
@@ -577,7 +577,7 @@ let lives = 0; // Start with 0, can buy up to 3
 
 // Credit drops (unlocked at wave 15)
 let creditDrops = [];
-const CREDIT_DROP_CHANCE = 0.15; // 15% chance per enemy kill
+const CREDIT_DROP_CHANCE = 0.5; // 50% chance for testing (was 15%)
 const CREDIT_DROP_WAVE = 15; // Unlocks at wave 15
 
 // ==================
@@ -1119,7 +1119,9 @@ class CreditDrop {
 }
 
 function spawnCreditDrop(x, y) {
+    console.log('spawnCreditDrop called, wave:', game.currentWave, 'required:', CREDIT_DROP_WAVE);
     if (game.currentWave >= CREDIT_DROP_WAVE && Math.random() < CREDIT_DROP_CHANCE) {
+        console.log('Credit drop spawned at', x, y);
         creditDrops.push(new CreditDrop(x, y));
     }
 }
@@ -1267,7 +1269,9 @@ function startWave(waveNum) {
     isSwarmWave = (waveNum % 3 === 0) && waveNum > 2 && !isBossWave;
 
     // Show credit drops notification at wave 15 (one time only)
+    console.log('Wave started:', waveNum, 'CREDIT_DROP_WAVE:', CREDIT_DROP_WAVE, 'notified:', SaveManager.data.creditDropsNotified);
     if (waveNum === CREDIT_DROP_WAVE && !SaveManager.data.creditDropsNotified) {
+        console.log('Showing credit drop notification!');
         showCreditDropNotification();
         SaveManager.data.creditDropsNotified = true;
         SaveManager.save();

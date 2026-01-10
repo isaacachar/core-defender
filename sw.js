@@ -1,5 +1,5 @@
-// Service Worker for Core Defender
-const CACHE_NAME = 'core-defender-v11';
+// Service Worker for Iron Dome
+const CACHE_NAME = 'iron-dome-v1';
 const ASSETS = [
     '/',
     '/index.html',
