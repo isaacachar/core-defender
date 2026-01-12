@@ -1340,12 +1340,12 @@
 
         /* Class Selector */
         #classSelector {
-            display: flex;
-            justify-content: center;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
             gap: 10px;
             margin-bottom: 20px;
-            flex-wrap: wrap;
-            max-width: 360px;
+            width: 100%;
+            max-width: 280px;
         }
 
         .class-btn {
@@ -1353,7 +1353,6 @@
             border: 2px solid var(--text-dim);
             border-radius: 6px;
             padding: 12px 10px;
-            min-width: 80px;
             text-align: center;
             cursor: pointer;
             transition: all 0.2s;
@@ -1655,7 +1654,7 @@
 
             <!-- Class Select Panel (shown after REBOOT) -->
             <div id="classSelectPanel" class="panel">
-                <div class="class-select-title">SELECT TURRET CLASS</div>
+                <div class="class-select-title">SELECT WEAPON TYPE</div>
                 <div class="class-select-scrap">SCRAP: <span id="classSelectScrap">0</span></div>
                 <div id="classSelectGrid" class="class-select-grid"></div>
                 <button id="classSelectStartBtn">DEPLOY</button>

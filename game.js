@@ -658,7 +658,7 @@ const SaveManager = {
     // ==================
     classDefinitions: {
         standard: {
-            name: 'STANDARD',
+            name: 'TURRET',
             icon: '◎',
             desc: 'Balanced all-rounder',
             color: '#00f0ff',
