@@ -885,8 +885,22 @@ const core = {
     // Class system
     currentClass: 'standard',
     classSpecial: null,  // 'pierce2', 'spread', 'spinup'
-    spinupMultiplier: 1  // For minigun spinup mechanic
+    spinupMultiplier: 1,  // For minigun spinup mechanic
+
+    // Screen effects
+    screenShake: 0,
+    damageFlash: 0
 };
+
+// Trigger screen shake
+function triggerShake(intensity) {
+    game.screenShake = Math.max(game.screenShake, intensity);
+}
+
+// Trigger damage flash
+function triggerDamageFlash() {
+    game.damageFlash = 1;
+}
 
 // ==================
 // ENTITIES
@@ -1056,6 +1070,8 @@ class Enemy {
             if (lives > 0) {
                 lives--;
                 AudioManager.playShieldBlock();
+                triggerShake(12); // Strong shake on taking damage
+                triggerDamageFlash(); // Red flash
                 // Kill this enemy
                 game.enemiesAlive = Math.max(0, game.enemiesAlive - 1);
                 const idx = enemies.indexOf(this);
@@ -1156,6 +1172,15 @@ class Enemy {
             time: 0,
             maxTime: 0.4
         });
+
+        // Screen shake based on enemy type
+        if (this.type === 'megaboss') {
+            triggerShake(20); // Massive shake for mega boss
+        } else if (this.type === 'megaboss_medium' || this.type === 'tank') {
+            triggerShake(8); // Medium shake for big enemies
+        } else {
+            triggerShake(3); // Small shake for normal enemies
+        }
 
         // Remove from array
         const idx = enemies.indexOf(this);
@@ -2505,9 +2530,18 @@ function gameLoop(currentTime) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // Apply screen shake
+    let shakeX = 0, shakeY = 0;
+    if (game.screenShake > 0) {
+        shakeX = (Math.random() - 0.5) * game.screenShake * 2;
+        shakeY = (Math.random() - 0.5) * game.screenShake * 2;
+        game.screenShake *= 0.85; // Decay
+        if (game.screenShake < 0.5) game.screenShake = 0;
+    }
+
     // Center and scale the view
     ctx.save();
-    ctx.translate(gameOffsetX, gameOffsetY);
+    ctx.translate(gameOffsetX + shakeX, gameOffsetY + shakeY);
     ctx.scale(gameScale, gameScale);
 
     drawCore();
@@ -2545,6 +2579,14 @@ function gameLoop(currentTime) {
     }
 
     ctx.restore();
+
+    // Draw damage flash overlay
+    if (game.damageFlash > 0) {
+        ctx.fillStyle = `rgba(255, 0, 68, ${game.damageFlash * 0.4})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        game.damageFlash -= 0.05;
+        if (game.damageFlash < 0) game.damageFlash = 0;
+    }
 
     // Update UI
     updateUI();
