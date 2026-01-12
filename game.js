@@ -438,10 +438,29 @@ const SaveManager = {
         totalGamesPlayed: 0,
         musicEnabled: true,
         sfxEnabled: true,
-        tutorialSeen: false
+        tutorialSeen: false,
+        megaBossDefeated: false,
+        // Unlocks - frost is free, others need to be earned
+        unlocks: {
+            frost: true,      // Free from start
+            pierce: false,    // Reach Wave 5
+            fury: false,      // Kill 100 enemies
+            pulse: false,     // Reach Wave 15
+            nuke: false,      // Kill 500 enemies
+            extraLife: false  // Beat a Mega Boss
+        }
     },
 
     data: null,
+
+    // Unlock requirements
+    unlockRequirements: {
+        pierce: { type: 'wave', value: 5, label: 'Reach Wave 5' },
+        fury: { type: 'kills', value: 100, label: 'Kill 100 enemies' },
+        pulse: { type: 'wave', value: 15, label: 'Reach Wave 15' },
+        nuke: { type: 'kills', value: 500, label: 'Kill 500 enemies' },
+        extraLife: { type: 'megaboss', value: true, label: 'Defeat a Mega Boss' }
+    },
 
     init() {
         this.load();
@@ -455,13 +474,20 @@ const SaveManager = {
         if (!this.data.sfxEnabled) {
             document.getElementById('sfxBtn').classList.add('muted');
         }
+        // Check for any unlocks on init
+        this.checkUnlocks();
     },
 
     load() {
         try {
             const saved = localStorage.getItem(this.storageKey);
             if (saved) {
-                this.data = { ...this.defaultData, ...JSON.parse(saved) };
+                const parsed = JSON.parse(saved);
+                // Deep merge for unlocks
+                this.data = { ...this.defaultData, ...parsed };
+                if (parsed.unlocks) {
+                    this.data.unlocks = { ...this.defaultData.unlocks, ...parsed.unlocks };
+                }
             } else {
                 this.data = { ...this.defaultData };
             }
@@ -491,9 +517,10 @@ const SaveManager = {
         this.data.totalEnemiesKilled++;
     },
 
-    addWaveCompleted() {
+    addWaveCompleted(currentWave) {
         this.data.totalWavesCompleted++;
         this.save();
+        this.checkUnlocks(currentWave);
     },
 
     addGamePlayed() {
@@ -505,6 +532,112 @@ const SaveManager = {
         this.data.musicEnabled = musicEnabled;
         this.data.sfxEnabled = sfxEnabled;
         this.save();
+    },
+
+    markMegaBossDefeated() {
+        if (!this.data.megaBossDefeated) {
+            this.data.megaBossDefeated = true;
+            this.save();
+            this.checkUnlocks();
+        }
+    },
+
+    isUnlocked(ability) {
+        return this.data.unlocks[ability] === true;
+    },
+
+    checkUnlocks(currentWave = 0) {
+        let newUnlock = null;
+        // Use current wave if higher than saved high score
+        const waveToCheck = Math.max(this.data.highScore, currentWave);
+
+        // Check pierce - Wave 5
+        if (!this.data.unlocks.pierce && waveToCheck >= 5) {
+            this.data.unlocks.pierce = true;
+            newUnlock = 'PIERCE';
+        }
+
+        // Check fury - 100 kills
+        if (!this.data.unlocks.fury && this.data.totalEnemiesKilled >= 100) {
+            this.data.unlocks.fury = true;
+            newUnlock = 'FURY';
+        }
+
+        // Check pulse - Wave 15
+        if (!this.data.unlocks.pulse && waveToCheck >= 15) {
+            this.data.unlocks.pulse = true;
+            newUnlock = 'PULSE';
+        }
+
+        // Check nuke - 500 kills
+        if (!this.data.unlocks.nuke && this.data.totalEnemiesKilled >= 500) {
+            this.data.unlocks.nuke = true;
+            newUnlock = 'NUKE';
+        }
+
+        // Check extraLife - Mega Boss defeated
+        if (!this.data.unlocks.extraLife && this.data.megaBossDefeated) {
+            this.data.unlocks.extraLife = true;
+            newUnlock = '+1 STARTING LIFE';
+        }
+
+        if (newUnlock) {
+            this.save();
+            console.log('[UNLOCK]', newUnlock, this.data.unlocks);
+            this.showUnlockNotification(newUnlock, newUnlock === '+1 STARTING LIFE');
+        }
+
+        return newUnlock;
+    },
+
+    // Ability descriptions for unlock notifications
+    abilityInfo: {
+        pierce: { desc: 'Shots penetrate through enemies', cost: 60 },
+        fury: { desc: 'Shots deal critical damage', cost: 80 },
+        pulse: { desc: 'Damages all enemies in range', cost: 100 },
+        nuke: { desc: 'Destroys all enemies on screen', cost: 200 }
+    },
+
+    showUnlockNotification(unlockName, isBigUnlock = false) {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = 'unlock-notification' + (isBigUnlock ? ' big-unlock' : '');
+
+        if (isBigUnlock) {
+            notification.innerHTML = `<span class="unlock-label">MEGA BOSS DEFEATED!</span><span class="unlock-name">${unlockName}</span><span class="unlock-desc">+1 LIFE EVERY RUN</span>`;
+        } else {
+            // Get ability info for description
+            const key = unlockName.toLowerCase();
+            const info = this.abilityInfo[key];
+            if (info) {
+                notification.innerHTML = `<span class="unlock-label">UNLOCKED</span><span class="unlock-name">${unlockName}</span><span class="unlock-desc">${info.desc}</span><span class="unlock-cost">$${info.cost}</span>`;
+            } else {
+                notification.innerHTML = `<span class="unlock-label">UNLOCKED</span><span class="unlock-name">${unlockName}</span>`;
+            }
+        }
+        document.body.appendChild(notification);
+
+        // Animate and remove (longer for big unlocks)
+        const duration = isBigUnlock ? 5000 : 4000;
+        setTimeout(() => notification.classList.add('show'), 50);
+        setTimeout(() => {
+            notification.classList.remove('show');
+            setTimeout(() => notification.remove(), 500);
+        }, duration);
+    },
+
+    getUnlockProgress(ability) {
+        const req = this.unlockRequirements[ability];
+        if (!req) return null;
+
+        if (req.type === 'wave') {
+            return { current: this.data.highScore, required: req.value, label: req.label };
+        } else if (req.type === 'kills') {
+            return { current: this.data.totalEnemiesKilled, required: req.value, label: req.label };
+        } else if (req.type === 'megaboss') {
+            return { current: this.data.megaBossDefeated ? 1 : 0, required: 1, label: req.label };
+        }
+        return null;
     }
 };
 
@@ -838,6 +971,11 @@ class Enemy {
         game.enemiesAlive = Math.max(0, game.enemiesAlive - 1);
         AudioManager.playExplosion();
         SaveManager.addEnemyKilled();
+
+        // Track mega boss defeat (only the main mega boss, not children)
+        if (this.type === 'megaboss') {
+            SaveManager.markMegaBossDefeated();
+        }
 
         // Splitter/Megaboss spawns children
         if (this.canSplit && this.splitCount > 0) {
@@ -1793,19 +1931,50 @@ function updateUI() {
     const totalEnemiesLeft = game.enemiesAlive + game.enemiesToSpawn;
     document.getElementById('enemyCountLabel').textContent = `☠ ${totalEnemiesLeft}`;
 
-    // Ability buttons
-    updateAbilityButton('pierceBtn', core.pierceActive, core.pierceTimer, core.pierceCharges, 'PIERCE');
-    updateAbilityButton('frostBtn', core.frostActive, core.frostTimer, core.frostCharges, 'FROST');
-    updateAbilityButton('furyBtn', core.critActive, core.critTimer, core.critCharges, 'FURY');
+    // Kill counter - show progress towards next kill-based unlock
+    const killsLabel = document.getElementById('killsLabel');
+    const totalKills = SaveManager.data.totalEnemiesKilled;
+    let killTarget = 0;
+    if (!SaveManager.isUnlocked('fury')) {
+        killTarget = 100;
+        killsLabel.textContent = `KILLS ${totalKills}/${killTarget}`;
+    } else if (!SaveManager.isUnlocked('nuke')) {
+        killTarget = 500;
+        killsLabel.textContent = `KILLS ${totalKills}/${killTarget}`;
+    } else {
+        killsLabel.textContent = '';
+    }
+    // Color-code: green if >= 80% of target
+    if (killTarget > 0 && totalKills >= killTarget * 0.8) {
+        killsLabel.classList.add('close');
+    } else {
+        killsLabel.classList.remove('close');
+    }
 
-    // Nuke button (instant use, no timer)
+    // Ability buttons (with unlock keys)
+    updateAbilityButton('frostBtn', core.frostActive, core.frostTimer, core.frostCharges, 'FROST', 'frost');
+    updateAbilityButton('pierceBtn', core.pierceActive, core.pierceTimer, core.pierceCharges, 'PIERCE', 'pierce');
+    updateAbilityButton('furyBtn', core.critActive, core.critTimer, core.critCharges, 'FURY', 'fury');
+    updateAbilityButton('pulseBtn', core.pulseActive, core.pulseTimer, core.pulseCharges, 'PULSE', 'pulse');
+
+    // Nuke button (instant use, no timer) - needs special handling for locked state
     const nukeBtn = document.getElementById('nukeBtn');
     const nukeCountSpan = nukeBtn.querySelector('.count');
-    if (nukeCountSpan) nukeCountSpan.textContent = `[${core.nukeCharges}]`;
-    nukeBtn.disabled = core.nukeCharges <= 0 || enemies.length === 0;
+    const nukeNameSpan = nukeBtn.querySelector('span:not(.count)');
+    const nukeLocked = !SaveManager.isUnlocked('nuke');
 
-    // Pulse button (duration-based like other abilities)
-    updateAbilityButton('pulseBtn', core.pulseActive, core.pulseTimer, core.pulseCharges, 'PULSE');
+    if (nukeLocked) {
+        const progress = SaveManager.getUnlockProgress('nuke');
+        if (nukeNameSpan) nukeNameSpan.textContent = 'LOCKED';
+        if (nukeCountSpan) nukeCountSpan.textContent = progress ? `[${progress.label}]` : '[???]';
+        nukeBtn.disabled = true;
+        nukeBtn.classList.add('locked');
+    } else {
+        nukeBtn.classList.remove('locked');
+        if (nukeNameSpan) nukeNameSpan.textContent = 'NUKE';
+        if (nukeCountSpan) nukeCountSpan.textContent = `[${core.nukeCharges}]`;
+        nukeBtn.disabled = core.nukeCharges <= 0 || enemies.length === 0;
+    }
 
     // Start wave button
     const startBtn = document.getElementById('startWaveBtn');
@@ -1821,10 +1990,25 @@ function updateUI() {
     }
 }
 
-function updateAbilityButton(id, active, timer, charges, name) {
+function updateAbilityButton(id, active, timer, charges, name, unlockKey) {
     const btn = document.getElementById(id);
     const countSpan = btn.querySelector('.count');
     const nameSpan = btn.querySelector('span:not(.count)');
+
+    // Check if ability is locked
+    const isLocked = unlockKey && !SaveManager.isUnlocked(unlockKey);
+
+    if (isLocked) {
+        const progress = SaveManager.getUnlockProgress(unlockKey);
+        if (nameSpan) nameSpan.textContent = 'LOCKED';
+        if (countSpan) countSpan.textContent = progress ? `[${progress.label}]` : '[???]';
+        btn.disabled = true;
+        btn.classList.remove('active');
+        btn.classList.add('locked');
+        return;
+    }
+
+    btn.classList.remove('locked');
 
     if (active) {
         if (nameSpan) nameSpan.textContent = name;
@@ -1849,7 +2033,8 @@ function updateWaveLabel() {
     label.classList.remove('boss', 'swarm', 'megaboss');
 
     if (isMegaBossWave) {
-        label.textContent = `Wave ${game.currentWave} - MEGA BOSS`;
+        const hint = !SaveManager.isUnlocked('extraLife') ? ' [+LIFE?]' : '';
+        label.textContent = `Wave ${game.currentWave} - MEGA BOSS${hint}`;
         label.classList.add('megaboss');
     } else if (isBossWave) {
         label.textContent = `Wave ${game.currentWave} - BOSS`;
@@ -1910,29 +2095,28 @@ function updateUpgradePanel() {
     multishotBtn.disabled = !canBuyMultishot;
     multishotBtn.classList.toggle('affordable', canBuyMultishot);
 
-    // Ability purchase buttons
-    const pierceBtn = document.getElementById('buyPierceBtn');
-    pierceBtn.disabled = game.money < game.pierceCost;
-    pierceBtn.classList.toggle('affordable', game.money >= game.pierceCost);
+    // Ability purchase buttons - check unlock status
+    const frostBuyBtn = document.getElementById('buyFrostBtn');
+    updatePurchaseButton(frostBuyBtn, game.frostCost, 'frost');
 
-    const frostBtn = document.getElementById('buyFrostBtn');
-    frostBtn.disabled = game.money < game.frostCost;
-    frostBtn.classList.toggle('affordable', game.money >= game.frostCost);
+    const pierceBuyBtn = document.getElementById('buyPierceBtn');
+    updatePurchaseButton(pierceBuyBtn, game.pierceCost, 'pierce');
 
-    const furyBtn = document.getElementById('buyFuryBtn');
-    furyBtn.disabled = game.money < game.critCost;
-    furyBtn.classList.toggle('affordable', game.money >= game.critCost);
+    const furyBuyBtn = document.getElementById('buyFuryBtn');
+    updatePurchaseButton(furyBuyBtn, game.critCost, 'fury');
 
-    // Nuke purchase button
-    const nukeBtn = document.getElementById('buyNukeBtn');
-    nukeBtn.disabled = game.money < game.nukeCost;
-    nukeBtn.classList.toggle('affordable', game.money >= game.nukeCost);
+    const pulseBuyBtn = document.getElementById('buyPulseBtn');
+    updatePurchaseButton(pulseBuyBtn, game.pulseCost, 'pulse');
+
+    const nukeBuyBtn = document.getElementById('buyNukeBtn');
+    updatePurchaseButton(nukeBuyBtn, game.nukeCost, 'nuke');
 
     // Shield/Life purchase button (max 3)
     const shieldBtn = document.getElementById('buyShieldBtn');
     const canBuyShield = game.money >= game.shieldCost && lives < 3;
     shieldBtn.disabled = !canBuyShield;
     shieldBtn.classList.toggle('affordable', canBuyShield);
+    shieldBtn.classList.remove('locked');
     // Update shield button text to show current lives
     const shieldCostSpan = shieldBtn.querySelector('.cost');
     if (lives >= 3) {
@@ -1940,11 +2124,25 @@ function updateUpgradePanel() {
     } else {
         shieldCostSpan.textContent = `$${game.shieldCost}`;
     }
+}
 
-    // Pulse purchase button
-    const pulseBtn = document.getElementById('buyPulseBtn');
-    pulseBtn.disabled = game.money < game.pulseCost;
-    pulseBtn.classList.toggle('affordable', game.money >= game.pulseCost);
+// Helper for purchase buttons in upgrade panel
+function updatePurchaseButton(btn, cost, unlockKey) {
+    const isLocked = !SaveManager.isUnlocked(unlockKey);
+    const costSpan = btn.querySelector('.cost');
+    const nameSpan = btn.querySelector('span:not(.cost):not(.icon)');
+
+    if (isLocked) {
+        btn.disabled = true;
+        btn.classList.remove('affordable');
+        btn.classList.add('locked');
+        if (costSpan) costSpan.textContent = 'LOCKED';
+    } else {
+        btn.classList.remove('locked');
+        btn.disabled = game.money < cost;
+        btn.classList.toggle('affordable', game.money >= cost);
+        if (costSpan) costSpan.textContent = `$${cost}`;
+    }
 }
 
 function showUpgradePanel() {
@@ -1988,13 +2186,38 @@ function showGameOver(won) {
 function updateGameOverStats() {
     const statsDiv = document.getElementById('gameOverStats');
     if (statsDiv) {
+        let unlockProgress = getNextUnlockProgress();
         statsDiv.innerHTML = `
             <div>Wave Reached: ${game.currentWave}</div>
             <div>Best: Wave ${SaveManager.data.highScore}</div>
             <div>Total Kills: ${SaveManager.data.totalEnemiesKilled.toLocaleString()}</div>
             <div>Games Played: ${SaveManager.data.totalGamesPlayed}</div>
+            ${unlockProgress ? `<div class="unlock-hint">${unlockProgress}</div>` : ''}
         `;
     }
+}
+
+function getNextUnlockProgress() {
+    const data = SaveManager.data;
+    const unlocks = data.unlocks;
+
+    // Find next locked ability and show progress
+    if (!unlocks.pierce) {
+        return `Next: PIERCE (Wave ${data.highScore}/5)`;
+    }
+    if (!unlocks.fury) {
+        return `Next: FURY (${data.totalEnemiesKilled}/100 kills)`;
+    }
+    if (!unlocks.pulse) {
+        return `Next: PULSE (Wave ${data.highScore}/15)`;
+    }
+    if (!unlocks.nuke) {
+        return `Next: NUKE (${data.totalEnemiesKilled}/500 kills)`;
+    }
+    if (!unlocks.extraLife) {
+        return `Next: +1 LIFE (Defeat Mega Boss)`;
+    }
+    return null; // All unlocked
 }
 
 // ==================
@@ -2061,7 +2284,7 @@ function gameLoop(currentTime) {
         // Wave completion check
         if (game.enemiesAlive <= 0 && game.enemiesToSpawn <= 0 && game.waveInProgress) {
             game.waveInProgress = false;
-            SaveManager.addWaveCompleted();
+            SaveManager.addWaveCompleted(game.currentWave);
             // Celebrate boss wave completion
             if (isBossWave || isMegaBossWave) {
                 CrazyGamesSDK.happytime();
@@ -2470,8 +2693,8 @@ document.getElementById('restartBtn').addEventListener('click', () => {
     explosions = [];
     damageNumbers = [];
 
-    // Reset lives
-    lives = 0;
+    // Reset lives - give +1 if extraLife is unlocked
+    lives = SaveManager.isUnlocked('extraLife') ? 1 : 0;
 
     // Hide panels
     document.getElementById('gameOverPanel').style.display = 'none';
@@ -2501,6 +2724,27 @@ function showTitleScreen() {
     // Update title stats
     document.getElementById('titleHighScore').textContent = `Wave ${SaveManager.data.highScore}`;
     document.getElementById('titleKills').textContent = SaveManager.data.totalEnemiesKilled.toLocaleString();
+
+    // Update unlocks display
+    updateTitleUnlocks();
+}
+
+function updateTitleUnlocks() {
+    const container = document.getElementById('titleUnlocks');
+    if (!container) return;
+
+    const unlocks = SaveManager.data.unlocks;
+    const data = SaveManager.data;
+
+    // Build visual progress bar
+    let progressBar = '';
+    const abilityOrder = ['frost', 'pierce', 'fury', 'pulse', 'nuke', 'extraLife'];
+    for (const key of abilityOrder) {
+        progressBar += unlocks[key] ? '▰' : '▱';
+    }
+
+    let html = `<div class="unlock-progress">UNLOCKS ${progressBar}</div>`;
+    container.innerHTML = html;
 }
 
 function hideTitleScreen() {
