@@ -885,6 +885,99 @@
             transform: scale(0.96);
         }
 
+        /* Class Select Panel (restart screen) */
+        #classSelectPanel {
+            text-align: center;
+            padding: 20px;
+            max-width: 340px;
+        }
+        .class-select-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--cyan);
+            margin-bottom: 8px;
+            letter-spacing: 1px;
+        }
+        .class-select-scrap {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 13px;
+            color: var(--text-dim);
+            margin-bottom: 12px;
+        }
+        .class-select-scrap span {
+            color: #ffcc00;
+            font-weight: 600;
+        }
+        .class-select-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .class-select-btn {
+            background: linear-gradient(180deg, rgba(30, 30, 50, 0.95) 0%, rgba(15, 15, 35, 0.98) 100%);
+            border: 2px solid var(--border);
+            border-radius: 6px;
+            padding: 10px 8px;
+            cursor: pointer;
+            transition: all 0.15s;
+            text-align: center;
+        }
+        .class-select-btn:active {
+            transform: scale(0.96);
+        }
+        .class-select-btn.selected {
+            border-color: var(--cyan);
+            box-shadow: var(--glow-cyan);
+        }
+        .class-select-btn.locked {
+            opacity: 0.6;
+            border-color: rgba(100, 100, 120, 0.4);
+        }
+        .class-select-btn.locked.affordable {
+            opacity: 0.85;
+            border-color: #ffcc00;
+        }
+        .class-select-btn .cs-icon {
+            font-size: 20px;
+            margin-bottom: 4px;
+        }
+        .class-select-btn .cs-name {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text);
+            display: block;
+        }
+        .class-select-btn.locked .cs-name {
+            color: var(--text-dim);
+        }
+        .class-select-btn .cs-cost {
+            font-size: 10px;
+            color: #ffcc00;
+            margin-top: 2px;
+        }
+        #classSelectStartBtn {
+            background: linear-gradient(180deg, rgba(0, 60, 80, 0.95) 0%, rgba(0, 30, 50, 0.98) 100%);
+            border: 2px solid var(--cyan);
+            color: var(--cyan);
+            padding: 14px 50px;
+            border-radius: 4px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 14px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            box-shadow: var(--glow-cyan);
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        #classSelectStartBtn:active {
+            background: rgba(0, 240, 255, 0.3);
+            transform: scale(0.96);
+        }
+
         /* Title Screen */
         #titleScreen {
             position: fixed;
@@ -1212,12 +1305,145 @@
             margin-bottom: 30px;
         }
 
+        .scrap-balance {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--orange);
+            text-shadow: 0 0 10px rgba(255, 102, 0, 0.5);
+            margin-bottom: 12px;
+            letter-spacing: 2px;
+        }
+
         .unlock-progress {
             font-family: 'Share Tech Mono', monospace;
             font-size: 12px;
             color: var(--text-dim);
             letter-spacing: 2px;
             margin-bottom: 10px;
+        }
+
+        /* Scrap display in game over */
+        .scrap-earned {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--orange);
+            text-shadow: 0 0 10px rgba(255, 102, 0, 0.5);
+            margin: 10px 0;
+        }
+
+        .scrap-total {
+            font-size: 12px;
+            color: var(--text-dim);
+        }
+
+        /* Class Selector */
+        #classSelector {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            max-width: 360px;
+        }
+
+        .class-btn {
+            background: linear-gradient(180deg, rgba(30, 30, 50, 0.95) 0%, rgba(15, 15, 35, 0.98) 100%);
+            border: 2px solid var(--text-dim);
+            border-radius: 6px;
+            padding: 12px 10px;
+            min-width: 80px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .class-btn .class-icon {
+            font-size: 24px;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .class-btn .class-name {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            display: block;
+            color: var(--text);
+        }
+
+        .class-btn .class-cost {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 9px;
+            color: var(--orange);
+            display: block;
+            margin-top: 4px;
+        }
+
+        .class-btn.unlocked {
+            border-color: var(--cyan-dim);
+        }
+
+        .class-btn.unlocked:hover {
+            border-color: var(--cyan);
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.3);
+        }
+
+        .class-btn.selected {
+            border-color: var(--cyan);
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.5), inset 0 0 15px rgba(0, 240, 255, 0.1);
+        }
+
+        .class-btn.selected::after {
+            content: '✓';
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: var(--cyan);
+            color: var(--bg-dark);
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            font-size: 12px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .class-btn.locked {
+            opacity: 0.7;
+            border-color: rgba(100, 100, 120, 0.5);
+        }
+
+        .class-btn.locked .class-icon {
+            filter: grayscale(0.5);
+            opacity: 0.7;
+        }
+
+        .class-btn.locked .class-name {
+            color: var(--text-dim);
+        }
+
+        .class-btn.affordable {
+            border-color: var(--orange);
+            opacity: 1;
+        }
+
+        .class-btn.affordable .class-name {
+            color: var(--text);
+        }
+
+        .class-btn.affordable .class-icon {
+            filter: none;
+            opacity: 1;
+        }
+
+        .class-btn.affordable:hover {
+            box-shadow: 0 0 15px rgba(255, 102, 0, 0.4);
         }
 
         .unlock-icons {
@@ -1270,6 +1496,7 @@
             <div class="titleStat">TOTAL KILLS: <span class="titleStatValue" id="titleKills">0</span></div>
         </div>
         <div id="titleUnlocks"></div>
+        <div id="classSelector"></div>
         <button id="playBtn">PLAY</button>
         <div class="titleVersion">v1.0</div>
     </div>
@@ -1424,6 +1651,14 @@
                 <div id="gameOverText">SYSTEM FAILURE</div>
                 <div id="gameOverStats"></div>
                 <button id="restartBtn">REBOOT</button>
+            </div>
+
+            <!-- Class Select Panel (shown after REBOOT) -->
+            <div id="classSelectPanel" class="panel">
+                <div class="class-select-title">SELECT TURRET CLASS</div>
+                <div class="class-select-scrap">SCRAP: <span id="classSelectScrap">0</span></div>
+                <div id="classSelectGrid" class="class-select-grid"></div>
+                <button id="classSelectStartBtn">DEPLOY</button>
             </div>
         </div>
     </div>

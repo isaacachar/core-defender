@@ -440,6 +440,16 @@ const SaveManager = {
         sfxEnabled: true,
         tutorialSeen: false,
         megaBossDefeated: false,
+        // Meta currency
+        scrap: 0,
+        selectedClass: 'standard',
+        // Class unlocks - standard is free
+        classUnlocks: {
+            standard: true,
+            sniper: false,
+            shotgun: false,
+            minigun: false
+        },
         // Unlocks - frost is free, others need to be earned
         unlocks: {
             frost: true,      // Free from start
@@ -474,8 +484,8 @@ const SaveManager = {
         if (!this.data.sfxEnabled) {
             document.getElementById('sfxBtn').classList.add('muted');
         }
-        // Check for any unlocks on init
-        this.checkUnlocks();
+        // Check for any unlocks on init (pass highScore as wave)
+        this.checkUnlocks(this.data.highScore);
     },
 
     load() {
@@ -483,10 +493,13 @@ const SaveManager = {
             const saved = localStorage.getItem(this.storageKey);
             if (saved) {
                 const parsed = JSON.parse(saved);
-                // Deep merge for unlocks
+                // Deep merge for unlocks and classUnlocks
                 this.data = { ...this.defaultData, ...parsed };
                 if (parsed.unlocks) {
                     this.data.unlocks = { ...this.defaultData.unlocks, ...parsed.unlocks };
+                }
+                if (parsed.classUnlocks) {
+                    this.data.classUnlocks = { ...this.defaultData.classUnlocks, ...parsed.classUnlocks };
                 }
             } else {
                 this.data = { ...this.defaultData };
@@ -638,6 +651,119 @@ const SaveManager = {
             return { current: this.data.megaBossDefeated ? 1 : 0, required: 1, label: req.label };
         }
         return null;
+    },
+
+    // ==================
+    // CLASS SYSTEM
+    // ==================
+    classDefinitions: {
+        standard: {
+            name: 'STANDARD',
+            icon: '◎',
+            desc: 'Balanced all-rounder',
+            color: '#00f0ff',
+            cost: 0,
+            stats: {
+                damage: 35,
+                fireRate: 3,
+                range: 225,
+                targets: 1,
+                special: null
+            }
+        },
+        sniper: {
+            name: 'SNIPER',
+            icon: '⊕',
+            desc: 'Slow but devastating',
+            color: '#ff00aa',
+            cost: 150,
+            stats: {
+                damage: 120,
+                fireRate: 1,
+                range: 320,
+                targets: 1,
+                special: 'pierce2' // Inherent pierce through 2 enemies
+            }
+        },
+        shotgun: {
+            name: 'SHOTGUN',
+            icon: '❖',
+            desc: 'Hits multiple targets',
+            color: '#ff6600',
+            cost: 200,
+            stats: {
+                damage: 20,
+                fireRate: 2,
+                range: 160,
+                targets: 4,
+                special: 'spread' // Spread shot
+            }
+        },
+        minigun: {
+            name: 'MINIGUN',
+            icon: '⚡',
+            desc: 'Extreme fire rate',
+            color: '#f0ff00',
+            cost: 300,
+            stats: {
+                damage: 12,
+                fireRate: 10,
+                range: 200,
+                targets: 1,
+                special: 'spinup' // Gets faster over time
+            }
+        }
+    },
+
+    // Calculate scrap earned from a run
+    calculateScrapEarned(wavesCompleted, killsThisRun) {
+        // Base: 5 scrap per wave + 1 scrap per 5 kills
+        const waveScrap = wavesCompleted * 5;
+        const killScrap = Math.floor(killsThisRun / 5);
+        // Bonus for reaching milestones
+        let bonusScrap = 0;
+        if (wavesCompleted >= 10) bonusScrap += 10;
+        if (wavesCompleted >= 20) bonusScrap += 20;
+        if (wavesCompleted >= 30) bonusScrap += 30;
+        return waveScrap + killScrap + bonusScrap;
+    },
+
+    // Add scrap from a completed run
+    addScrap(amount) {
+        this.data.scrap += amount;
+        this.save();
+        return this.data.scrap;
+    },
+
+    // Spend scrap to unlock a class
+    unlockClass(classId) {
+        const classDef = this.classDefinitions[classId];
+        if (!classDef) return false;
+        if (this.data.classUnlocks[classId]) return false; // Already unlocked
+        if (this.data.scrap < classDef.cost) return false; // Can't afford
+
+        this.data.scrap -= classDef.cost;
+        this.data.classUnlocks[classId] = true;
+        this.save();
+        return true;
+    },
+
+    // Select a class for the next run
+    selectClass(classId) {
+        if (!this.data.classUnlocks[classId]) return false;
+        this.data.selectedClass = classId;
+        this.save();
+        return true;
+    },
+
+    // Get current class definition
+    getSelectedClass() {
+        return this.classDefinitions[this.data.selectedClass] || this.classDefinitions.standard;
+    },
+
+    // Check if class is unlocked
+    isClassUnlocked(classId) {
+        return this.data.classUnlocks[classId] === true;
     }
 };
 
@@ -707,6 +833,8 @@ const game = {
     countdownActive: false,
     upgradeShownForWave: -1,
     lastTime: 0,
+    killsThisRun: 0, // Track kills per run for scrap calculation
+    scrapEarned: 0,  // Scrap earned this run (for display)
 
     // Upgrade costs
     damageCost: 50,
@@ -752,7 +880,12 @@ const core = {
     pulseCharges: 0,
     pulseActive: false,
     pulseTimer: 0,
-    pulseDamageTimer: 0
+    pulseDamageTimer: 0,
+
+    // Class system
+    currentClass: 'standard',
+    classSpecial: null,  // 'pierce2', 'spread', 'spinup'
+    spinupMultiplier: 1  // For minigun spinup mechanic
 };
 
 // ==================
@@ -969,6 +1102,7 @@ class Enemy {
     die() {
         game.money += this.moneyReward;
         game.enemiesAlive = Math.max(0, game.enemiesAlive - 1);
+        game.killsThisRun++; // Track kills this run for scrap
         AudioManager.playExplosion();
         SaveManager.addEnemyKilled();
 
@@ -1121,6 +1255,26 @@ class Enemy {
             ctx.arc(this.x, this.y, 12 * s * sizeMult * regenPulse, 0, Math.PI * 2);
             ctx.fill();
             ctx.globalAlpha = 1;
+        }
+
+        // Slow/Frost indicator - cyan ice ring
+        if (this.slowTimer > 0) {
+            const frostAlpha = 0.4 + Math.sin(Date.now() * 0.015) * 0.2;
+            ctx.strokeStyle = `rgba(100, 200, 255, ${frostAlpha})`;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, 13 * s * sizeMult, 0, Math.PI * 2);
+            ctx.stroke();
+            // Ice particles
+            for (let i = 0; i < 4; i++) {
+                const angle = (Date.now() * 0.002 + i * Math.PI / 2) % (Math.PI * 2);
+                const px = this.x + Math.cos(angle) * 11 * s * sizeMult;
+                const py = this.y + Math.sin(angle) * 11 * s * sizeMult;
+                ctx.fillStyle = `rgba(200, 240, 255, ${frostAlpha})`;
+                ctx.beginPath();
+                ctx.arc(px, py, 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
         }
 
         // Health bar - cyberpunk style
@@ -1632,7 +1786,10 @@ function shoot() {
             hasCrit = true;
         }
 
-        const pierce = core.pierceActive ? 3 : 0;
+        // Pierce: ability gives 3, sniper class gives inherent 2
+        let pierce = 0;
+        if (core.pierceActive) pierce = 3;
+        else if (core.classSpecial === 'pierce2') pierce = 2;
         const slow = core.frostActive ? 0.5 : 0;
 
         bullets.push(new Bullet(startX, startY, target, damage, pierce, slow, isCrit));
@@ -1646,9 +1803,15 @@ function shoot() {
     }
 }
 
+function getClassColor() {
+    const classDef = SaveManager.classDefinitions[core.currentClass];
+    return classDef ? classDef.color : CYBER.cyan;
+}
+
 function drawCore() {
     const pulse = Math.sin(core.pulseTime * 2) * 0.2 + 0.8;
     const time = Date.now() * 0.001;
+    const classColor = getClassColor();
 
     // Draw grid pattern in background
     ctx.save();
@@ -1768,15 +1931,15 @@ function drawCore() {
     ctx.arc(core.x, core.y, 20, 0, Math.PI * 2);
     ctx.fill();
 
-    // Outer ring - magenta
-    ctx.strokeStyle = CYBER.magenta;
+    // Outer ring - class color
+    ctx.strokeStyle = classColor;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(core.x, core.y, 18, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Core ring - cyan
-    ctx.strokeStyle = CYBER.cyan;
+    // Core ring - class color
+    ctx.strokeStyle = classColor;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.arc(core.x, core.y, 15, 0, Math.PI * 2);
@@ -1789,15 +1952,15 @@ function drawCore() {
     ctx.arc(core.x, core.y, 12, 0, Math.PI * 2);
     ctx.fill();
 
-    // Energy core - pulsing cyan
+    // Energy core - pulsing with class color
     ctx.globalAlpha = 0.6 * innerPulse;
-    ctx.fillStyle = CYBER.cyan;
+    ctx.fillStyle = classColor;
     ctx.beginPath();
     ctx.arc(core.x, core.y, 9, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.globalAlpha = 0.8 * innerPulse;
-    ctx.fillStyle = CYBER.cyan;
+    ctx.fillStyle = classColor;
     ctx.beginPath();
     ctx.arc(core.x, core.y, 6, 0, Math.PI * 2);
     ctx.fill();
@@ -2088,12 +2251,14 @@ function updateUpgradePanel() {
 
     // Multishot upgrade
     const multishotBtn = document.getElementById('multishotBtn');
+    const isMaxMultishot = core.projectileCount >= 5;
     document.getElementById('multishotInfo').textContent = `${core.projectileCount} projectile${core.projectileCount > 1 ? 's' : ''}`;
-    document.getElementById('multishotCost').textContent = `$${game.multishotCost}`;
-    document.getElementById('multishotLevel').textContent = `Level ${upgradeLevels.multishot}`;
-    const canBuyMultishot = game.money >= game.multishotCost && core.projectileCount < 5;
+    document.getElementById('multishotCost').textContent = isMaxMultishot ? 'MAX' : `$${game.multishotCost}`;
+    document.getElementById('multishotLevel').textContent = isMaxMultishot ? 'MAXED' : `Level ${upgradeLevels.multishot}`;
+    const canBuyMultishot = game.money >= game.multishotCost && !isMaxMultishot;
     multishotBtn.disabled = !canBuyMultishot;
     multishotBtn.classList.toggle('affordable', canBuyMultishot);
+    multishotBtn.classList.toggle('maxed', isMaxMultishot);
 
     // Ability purchase buttons - check unlock status
     const frostBuyBtn = document.getElementById('buyFrostBtn');
@@ -2160,6 +2325,10 @@ function showGameOver(won) {
     const isNewHighScore = SaveManager.updateHighScore(game.currentWave);
     SaveManager.addGamePlayed();
 
+    // Calculate and award scrap
+    game.scrapEarned = SaveManager.calculateScrapEarned(game.currentWave, game.killsThisRun);
+    SaveManager.addScrap(game.scrapEarned);
+
     // Signal gameplay stopped to CrazyGames
     CrazyGamesSDK.gameplayStop();
 
@@ -2189,9 +2358,9 @@ function updateGameOverStats() {
         let unlockProgress = getNextUnlockProgress();
         statsDiv.innerHTML = `
             <div>Wave Reached: ${game.currentWave}</div>
-            <div>Best: Wave ${SaveManager.data.highScore}</div>
-            <div>Total Kills: ${SaveManager.data.totalEnemiesKilled.toLocaleString()}</div>
-            <div>Games Played: ${SaveManager.data.totalGamesPlayed}</div>
+            <div>Kills This Run: ${game.killsThisRun}</div>
+            <div class="scrap-earned">+${game.scrapEarned} SCRAP</div>
+            <div class="scrap-total">Total: ${SaveManager.data.scrap.toLocaleString()} Scrap</div>
             ${unlockProgress ? `<div class="unlock-hint">${unlockProgress}</div>` : ''}
         `;
     }
@@ -2477,6 +2646,7 @@ document.getElementById('nukeBtn').addEventListener('click', () => {
         // Kill all enemies on screen
         for (const enemy of [...enemies]) {
             game.money += enemy.moneyReward;
+            game.killsThisRun++; // Track kills this run for scrap
             SaveManager.addEnemyKilled();
             explosions.push({
                 x: enemy.x,
@@ -2631,9 +2801,87 @@ document.getElementById('sfxBtn').addEventListener('click', () => {
     }
 });
 
+// REBOOT button - show class selector
 document.getElementById('restartBtn').addEventListener('click', () => {
     AudioManager.playClick();
+    // Hide game over panel, show class select panel
+    document.getElementById('gameOverPanel').style.display = 'none';
+    showClassSelectPanel();
+});
+
+// Show class select panel for restart
+function showClassSelectPanel() {
+    const panel = document.getElementById('classSelectPanel');
+    const grid = document.getElementById('classSelectGrid');
+    const scrapLabel = document.getElementById('classSelectScrap');
+
+    // Update scrap display
+    scrapLabel.textContent = SaveManager.data.scrap.toLocaleString();
+
+    // Build class buttons
+    const classes = SaveManager.classDefinitions;
+    const data = SaveManager.data;
+    let html = '';
+
+    for (const [classId, classDef] of Object.entries(classes)) {
+        const isUnlocked = data.classUnlocks[classId];
+        const isSelected = data.selectedClass === classId;
+        const canAfford = data.scrap >= classDef.cost;
+
+        let stateClass = '';
+        if (isSelected) {
+            stateClass = 'selected';
+        } else if (isUnlocked) {
+            stateClass = 'unlocked';
+        } else if (canAfford) {
+            stateClass = 'locked affordable';
+        } else {
+            stateClass = 'locked';
+        }
+
+        html += `
+            <div class="class-select-btn ${stateClass}" data-class="${classId}">
+                <div class="cs-icon" style="color: ${classDef.color}">${classDef.icon}</div>
+                <span class="cs-name">${classDef.name}</span>
+                ${!isUnlocked ? `<div class="cs-cost">${classDef.cost} SCRAP</div>` : ''}
+            </div>
+        `;
+    }
+
+    grid.innerHTML = html;
+    panel.style.display = 'block';
+
+    // Add click handlers
+    grid.querySelectorAll('.class-select-btn').forEach(btn => {
+        btn.addEventListener('click', () => handleClassSelectClick(btn.dataset.class));
+    });
+}
+
+// Handle class selection in restart screen
+function handleClassSelectClick(classId) {
+    const isUnlocked = SaveManager.isClassUnlocked(classId);
+
+    if (isUnlocked) {
+        SaveManager.selectClass(classId);
+        AudioManager.playClick();
+        showClassSelectPanel(); // Refresh UI
+    } else {
+        // Try to purchase
+        const classDef = SaveManager.classDefinitions[classId];
+        if (SaveManager.data.scrap >= classDef.cost) {
+            SaveManager.purchaseClass(classId);
+            AudioManager.playAbility();
+            showClassSelectPanel(); // Refresh UI
+        }
+    }
+}
+
+// DEPLOY button - actually restart the game
+document.getElementById('classSelectStartBtn').addEventListener('click', () => {
+    AudioManager.playClick();
     AudioManager.startMusic();
+    // Hide class select panel
+    document.getElementById('classSelectPanel').style.display = 'none';
     // Signal gameplay restarted
     CrazyGamesSDK.gameplayStart();
     // Reset game state
@@ -2648,6 +2896,8 @@ document.getElementById('restartBtn').addEventListener('click', () => {
     game.countdown = 0;
     game.countdownActive = false;
     game.upgradeShownForWave = -1;
+    game.killsThisRun = 0;
+    game.scrapEarned = 0;
 
     game.damageCost = 50;
     game.fireRateCost = 75;
@@ -2664,13 +2914,17 @@ document.getElementById('restartBtn').addEventListener('click', () => {
     upgradeLevels.damage = 1;
     upgradeLevels.fireRate = 1;
     upgradeLevels.range = 1;
-    upgradeLevels.multishot = 1;
 
-    // Reset core
-    core.damage = 35;
-    core.fireRate = 3;
-    core.attackRange = 225;
-    core.projectileCount = 1;
+    // Reset core - apply selected class stats
+    const selectedClass = SaveManager.getSelectedClass();
+    core.currentClass = SaveManager.data.selectedClass;
+    core.classSpecial = selectedClass.stats.special;
+    core.damage = selectedClass.stats.damage;
+    core.fireRate = selectedClass.stats.fireRate;
+    core.attackRange = selectedClass.stats.range;
+    core.projectileCount = selectedClass.stats.targets;
+    upgradeLevels.multishot = selectedClass.stats.targets; // Match class starting targets
+    core.spinupMultiplier = 1; // Reset spinup for minigun
     core.pierceActive = false;
     core.pierceTimer = 0;
     core.pierceCharges = 0;
@@ -2697,7 +2951,6 @@ document.getElementById('restartBtn').addEventListener('click', () => {
     lives = SaveManager.isUnlocked('extraLife') ? 1 : 0;
 
     // Hide panels
-    document.getElementById('gameOverPanel').style.display = 'none';
     hideUpgradePanel();
 
     // Reset UI
@@ -2733,18 +2986,82 @@ function updateTitleUnlocks() {
     const container = document.getElementById('titleUnlocks');
     if (!container) return;
 
-    const unlocks = SaveManager.data.unlocks;
     const data = SaveManager.data;
 
-    // Build visual progress bar
-    let progressBar = '';
-    const abilityOrder = ['frost', 'pierce', 'fury', 'pulse', 'nuke', 'extraLife'];
-    for (const key of abilityOrder) {
-        progressBar += unlocks[key] ? '▰' : '▱';
+    // Show scrap balance only (abilities unlock automatically during gameplay)
+    let html = `
+        <div class="scrap-balance">⚙ ${data.scrap.toLocaleString()} SCRAP</div>
+    `;
+    container.innerHTML = html;
+
+    // Update class selector
+    updateClassSelector();
+}
+
+function updateClassSelector() {
+    const container = document.getElementById('classSelector');
+    if (!container) return;
+
+    const data = SaveManager.data;
+    const classes = SaveManager.classDefinitions;
+    let html = '';
+
+    for (const [classId, classDef] of Object.entries(classes)) {
+        const isUnlocked = data.classUnlocks[classId];
+        const isSelected = data.selectedClass === classId;
+        const canAfford = data.scrap >= classDef.cost;
+
+        let stateClass = '';
+        if (isSelected) {
+            stateClass = 'selected';
+        } else if (isUnlocked) {
+            stateClass = 'unlocked';
+        } else if (canAfford) {
+            stateClass = 'locked affordable';
+        } else {
+            stateClass = 'locked';
+        }
+
+        html += `
+            <div class="class-btn ${stateClass}" data-class="${classId}" style="--class-color: ${classDef.color}">
+                <span class="class-icon" style="color: ${classDef.color}">${classDef.icon}</span>
+                <span class="class-name">${classDef.name}</span>
+                ${!isUnlocked ? `<span class="class-cost">${classDef.cost} ⚙</span>` : ''}
+            </div>
+        `;
     }
 
-    let html = `<div class="unlock-progress">UNLOCKS ${progressBar}</div>`;
     container.innerHTML = html;
+
+    // Add click handlers
+    container.querySelectorAll('.class-btn').forEach(btn => {
+        btn.addEventListener('click', () => handleClassClick(btn.dataset.class));
+    });
+}
+
+function handleClassClick(classId) {
+    const isUnlocked = SaveManager.isClassUnlocked(classId);
+
+    if (isUnlocked) {
+        // Select this class
+        SaveManager.selectClass(classId);
+        AudioManager.playClick();
+        updateClassSelector();
+    } else {
+        // Try to unlock
+        const classDef = SaveManager.classDefinitions[classId];
+        if (SaveManager.data.scrap >= classDef.cost) {
+            if (SaveManager.unlockClass(classId)) {
+                AudioManager.playUpgrade();
+                // Auto-select newly unlocked class
+                SaveManager.selectClass(classId);
+                updateTitleUnlocks(); // Update scrap display
+            }
+        } else {
+            // Can't afford - play error sound or shake
+            AudioManager.playClick();
+        }
+    }
 }
 
 function hideTitleScreen() {
@@ -2769,6 +3086,16 @@ function startGame() {
     AudioManager.resume();
     AudioManager.startMusic();
     AudioManager.playClick();
+
+    // Apply selected class stats to core
+    const selectedClass = SaveManager.getSelectedClass();
+    core.currentClass = SaveManager.data.selectedClass;
+    core.classSpecial = selectedClass.stats.special;
+    core.damage = selectedClass.stats.damage;
+    core.fireRate = selectedClass.stats.fireRate;
+    core.attackRange = selectedClass.stats.range;
+    core.projectileCount = selectedClass.stats.targets;
+    core.spinupMultiplier = 1;
 
     // Signal gameplay started to CrazyGames
     CrazyGamesSDK.gameplayStart();
