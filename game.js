@@ -809,7 +809,56 @@ document.addEventListener('DOMContentLoaded', resizeCanvas);
 const BASE_SPAWN_RADIUS = 280;
 const SPAWN_BUFFER = 60; // Enemies spawn this far outside attack range
 const ABILITY_DURATION = 8;
-const MAX_RANGE = 400; // Maximum attack range (prevents going off screen)
+const FROST_DURATION = 12; // Frost lasts longer
+const FROST_SLOW = 0.75; // 75% slow (was 50%)
+// MAX_RANGE moved to UPGRADE_CONFIG.range.max
+
+// Ability balance
+const ABILITY_MAX_CHARGES = {
+    frost: 3,
+    pierce: 3,
+    fury: 3,
+    pulse: 3,
+    nuke: 1  // Only 1 nuke at a time!
+};
+const ABILITY_BASE_COSTS = {
+    frost: 40,
+    pierce: 50,
+    fury: 60,
+    pulse: 150,
+    nuke: 800  // Increased from 500
+};
+const ABILITY_COST_MULTIPLIER = 1.5; // 50% increase per purchase
+
+// Turret upgrade configuration
+const UPGRADE_CONFIG = {
+    damage: {
+        baseCost: 50,
+        costMultiplier: 1.4,
+        perLevel: 10,
+        unit: 'dmg'
+    },
+    fireRate: {
+        baseCost: 75,
+        costMultiplier: 1.5,
+        perLevel: 0.5,
+        unit: '/s'
+    },
+    range: {
+        baseCost: 60,
+        costMultiplier: 1.4,
+        perLevel: 25,
+        max: 400,  // Maximum range (prevents going off screen)
+        unit: ''
+    },
+    multishot: {
+        baseCost: 250,
+        costMultiplier: 1.8,
+        perLevel: 1,
+        max: 5,
+        unit: ''
+    }
+};
 
 // Dynamic spawn radius - always outside attack range
 function getSpawnRadius() {
@@ -836,17 +885,24 @@ const game = {
     killsThisRun: 0, // Track kills per run for scrap calculation
     scrapEarned: 0,  // Scrap earned this run (for display)
 
-    // Upgrade costs
-    damageCost: 50,
-    fireRateCost: 75,
-    rangeCost: 60,
-    multishotCost: 250,
-    pierceCost: 50,
-    frostCost: 40,
-    critCost: 60,
-    nukeCost: 500,
+    // Upgrade costs (turret upgrades - these scale with purchase)
+    // Initial values from UPGRADE_CONFIG.baseCost
+    damageCost: UPGRADE_CONFIG.damage.baseCost,
+    fireRateCost: UPGRADE_CONFIG.fireRate.baseCost,
+    rangeCost: UPGRADE_CONFIG.range.baseCost,
+    multishotCost: UPGRADE_CONFIG.multishot.baseCost,
     shieldCost: 400,
-    pulseCost: 120
+    // Note: Ability costs (frost, pierce, fury, pulse, nuke) are calculated
+    // dynamically via getAbilityCost() using ABILITY_BASE_COSTS and abilityPurchases
+
+    // Track ability purchases for scaling costs
+    abilityPurchases: {
+        frost: 0,
+        pierce: 0,
+        fury: 0,
+        pulse: 0,
+        nuke: 0
+    }
 };
 
 // ==================
@@ -891,6 +947,33 @@ const core = {
     screenShake: 0,
     damageFlash: 0
 };
+
+// Get current ability cost (scales with purchases)
+function getAbilityCost(abilityKey) {
+    const baseCost = ABILITY_BASE_COSTS[abilityKey];
+    const purchases = game.abilityPurchases[abilityKey];
+    return Math.floor(baseCost * Math.pow(ABILITY_COST_MULTIPLIER, purchases));
+}
+
+// Get current charges for an ability
+function getAbilityCharges(abilityKey) {
+    switch(abilityKey) {
+        case 'frost': return core.frostCharges;
+        case 'pierce': return core.pierceCharges;
+        case 'fury': return core.critCharges;
+        case 'pulse': return core.pulseCharges;
+        case 'nuke': return core.nukeCharges;
+        default: return 0;
+    }
+}
+
+// Check if can buy ability (has money and under max charges)
+function canBuyAbility(abilityKey) {
+    const cost = getAbilityCost(abilityKey);
+    const currentCharges = getAbilityCharges(abilityKey);
+    const maxCharges = ABILITY_MAX_CHARGES[abilityKey];
+    return game.money >= cost && currentCharges < maxCharges;
+}
 
 // Trigger screen shake
 function triggerShake(intensity) {
@@ -1815,7 +1898,7 @@ function shoot() {
         let pierce = 0;
         if (core.pierceActive) pierce = 3;
         else if (core.classSpecial === 'pierce2') pierce = 2;
-        const slow = core.frostActive ? 0.5 : 0;
+        const slow = core.frostActive ? FROST_SLOW : 0;
 
         bullets.push(new Bullet(startX, startY, target, damage, pierce, slow, isCrit));
     }
@@ -2113,31 +2196,11 @@ function drawExplosions() {
 function updateUI() {
     document.getElementById('moneyLabel').textContent = `$${game.money}`;
     document.getElementById('livesLabel').textContent = `♥ ${lives}`;
-    document.getElementById('highScoreLabel').textContent = `Best: ${SaveManager.data.highScore}`;
+    document.getElementById('highScoreLabel').textContent = `HI::${SaveManager.data.highScore}`;
 
     // Enemy count (enemies alive + enemies still to spawn)
     const totalEnemiesLeft = game.enemiesAlive + game.enemiesToSpawn;
     document.getElementById('enemyCountLabel').textContent = `☠ ${totalEnemiesLeft}`;
-
-    // Kill counter - show progress towards next kill-based unlock
-    const killsLabel = document.getElementById('killsLabel');
-    const totalKills = SaveManager.data.totalEnemiesKilled;
-    let killTarget = 0;
-    if (!SaveManager.isUnlocked('fury')) {
-        killTarget = 100;
-        killsLabel.textContent = `KILLS ${totalKills}/${killTarget}`;
-    } else if (!SaveManager.isUnlocked('nuke')) {
-        killTarget = 500;
-        killsLabel.textContent = `KILLS ${totalKills}/${killTarget}`;
-    } else {
-        killsLabel.textContent = '';
-    }
-    // Color-code: green if >= 80% of target
-    if (killTarget > 0 && totalKills >= killTarget * 0.8) {
-        killsLabel.classList.add('close');
-    } else {
-        killsLabel.classList.remove('close');
-    }
 
     // Ability buttons (with unlock keys)
     updateAbilityButton('frostBtn', core.frostActive, core.frostTimer, core.frostCharges, 'FROST', 'frost');
@@ -2221,17 +2284,17 @@ function updateWaveLabel() {
     label.classList.remove('boss', 'swarm', 'megaboss');
 
     if (isMegaBossWave) {
-        const hint = !SaveManager.isUnlocked('extraLife') ? ' [+LIFE?]' : '';
-        label.textContent = `Wave ${game.currentWave} - MEGA BOSS${hint}`;
+        const hint = !SaveManager.isUnlocked('extraLife') ? ' +?' : '';
+        label.textContent = `W::${game.currentWave} MEGA${hint}`;
         label.classList.add('megaboss');
     } else if (isBossWave) {
-        label.textContent = `Wave ${game.currentWave} - BOSS`;
+        label.textContent = `W::${game.currentWave} BOSS`;
         label.classList.add('boss');
     } else if (isSwarmWave) {
-        label.textContent = `Wave ${game.currentWave} - SWARM`;
+        label.textContent = `W::${game.currentWave} SWARM`;
         label.classList.add('swarm');
     } else {
-        label.textContent = `Wave ${game.currentWave}`;
+        label.textContent = `W::${game.currentWave}`;
     }
 }
 
@@ -2250,7 +2313,8 @@ function updateUpgradePanel() {
 
     // Damage upgrade
     const damageBtn = document.getElementById('damageBtn');
-    document.getElementById('damageInfo').textContent = `${core.damage} dmg`;
+    const dmgConfig = UPGRADE_CONFIG.damage;
+    document.getElementById('damageInfo').textContent = `${core.damage} dmg (+${dmgConfig.perLevel})`;
     document.getElementById('damageCost').textContent = `$${game.damageCost}`;
     document.getElementById('damageLevel').textContent = `Level ${upgradeLevels.damage}`;
     damageBtn.disabled = game.money < game.damageCost;
@@ -2258,7 +2322,8 @@ function updateUpgradePanel() {
 
     // Fire rate upgrade
     const fireRateBtn = document.getElementById('fireRateBtn');
-    document.getElementById('fireRateInfo').textContent = `${core.fireRate.toFixed(1)}/s`;
+    const frConfig = UPGRADE_CONFIG.fireRate;
+    document.getElementById('fireRateInfo').textContent = `${core.fireRate.toFixed(1)}/s (+${frConfig.perLevel})`;
     document.getElementById('fireRateCost').textContent = `$${game.fireRateCost}`;
     document.getElementById('fireRateLevel').textContent = `Level ${upgradeLevels.fireRate}`;
     fireRateBtn.disabled = game.money < game.fireRateCost;
@@ -2266,40 +2331,43 @@ function updateUpgradePanel() {
 
     // Range upgrade
     const rangeBtn = document.getElementById('rangeBtn');
-    const rangeMaxed = core.attackRange >= MAX_RANGE;
-    document.getElementById('rangeInfo').textContent = rangeMaxed ? `${Math.floor(core.attackRange)} MAX` : `${Math.floor(core.attackRange)}`;
-    document.getElementById('rangeCost').textContent = rangeMaxed ? 'MAXED' : `$${game.rangeCost}`;
+    const rangeConfig = UPGRADE_CONFIG.range;
+    const rangeMaxed = core.attackRange >= rangeConfig.max;
+    document.getElementById('rangeInfo').textContent = rangeMaxed ? `${Math.floor(core.attackRange)} MAX` : `${Math.floor(core.attackRange)} (+${rangeConfig.perLevel})`;
+    document.getElementById('rangeCost').textContent = rangeMaxed ? 'MAX' : `$${game.rangeCost}`;
     document.getElementById('rangeLevel').textContent = `Level ${upgradeLevels.range}`;
     const canBuyRange = game.money >= game.rangeCost && !rangeMaxed;
     rangeBtn.disabled = !canBuyRange;
     rangeBtn.classList.toggle('affordable', canBuyRange);
+    rangeBtn.classList.toggle('maxed', rangeMaxed);
 
     // Multishot upgrade
     const multishotBtn = document.getElementById('multishotBtn');
-    const isMaxMultishot = core.projectileCount >= 5;
-    document.getElementById('multishotInfo').textContent = `${core.projectileCount} projectile${core.projectileCount > 1 ? 's' : ''}`;
+    const msConfig = UPGRADE_CONFIG.multishot;
+    const isMaxMultishot = core.projectileCount >= msConfig.max;
+    document.getElementById('multishotInfo').textContent = isMaxMultishot ? `${core.projectileCount} targets MAX` : `${core.projectileCount} target${core.projectileCount > 1 ? 's' : ''} (+${msConfig.perLevel})`;
     document.getElementById('multishotCost').textContent = isMaxMultishot ? 'MAX' : `$${game.multishotCost}`;
-    document.getElementById('multishotLevel').textContent = isMaxMultishot ? 'MAXED' : `Level ${upgradeLevels.multishot}`;
+    document.getElementById('multishotLevel').textContent = isMaxMultishot ? 'MAX' : `Level ${upgradeLevels.multishot}`;
     const canBuyMultishot = game.money >= game.multishotCost && !isMaxMultishot;
     multishotBtn.disabled = !canBuyMultishot;
     multishotBtn.classList.toggle('affordable', canBuyMultishot);
     multishotBtn.classList.toggle('maxed', isMaxMultishot);
 
-    // Ability purchase buttons - check unlock status
+    // Ability purchase buttons - check unlock status and max charges
     const frostBuyBtn = document.getElementById('buyFrostBtn');
-    updatePurchaseButton(frostBuyBtn, game.frostCost, 'frost');
+    updatePurchaseButton(frostBuyBtn, getAbilityCost('frost'), 'frost');
 
     const pierceBuyBtn = document.getElementById('buyPierceBtn');
-    updatePurchaseButton(pierceBuyBtn, game.pierceCost, 'pierce');
+    updatePurchaseButton(pierceBuyBtn, getAbilityCost('pierce'), 'pierce');
 
     const furyBuyBtn = document.getElementById('buyFuryBtn');
-    updatePurchaseButton(furyBuyBtn, game.critCost, 'fury');
+    updatePurchaseButton(furyBuyBtn, getAbilityCost('fury'), 'fury');
 
     const pulseBuyBtn = document.getElementById('buyPulseBtn');
-    updatePurchaseButton(pulseBuyBtn, game.pulseCost, 'pulse');
+    updatePurchaseButton(pulseBuyBtn, getAbilityCost('pulse'), 'pulse');
 
     const nukeBuyBtn = document.getElementById('buyNukeBtn');
-    updatePurchaseButton(nukeBuyBtn, game.nukeCost, 'nuke');
+    updatePurchaseButton(nukeBuyBtn, getAbilityCost('nuke'), 'nuke');
 
     // Shield/Life purchase button (max 3)
     const shieldBtn = document.getElementById('buyShieldBtn');
@@ -2322,13 +2390,23 @@ function updatePurchaseButton(btn, cost, unlockKey) {
     const costSpan = btn.querySelector('.cost');
     const nameSpan = btn.querySelector('span:not(.cost):not(.icon)');
 
+    // Check if at max charges
+    const currentCharges = getAbilityCharges(unlockKey);
+    const maxCharges = ABILITY_MAX_CHARGES[unlockKey];
+    const isMaxed = currentCharges >= maxCharges;
+
     if (isLocked) {
         btn.disabled = true;
-        btn.classList.remove('affordable');
+        btn.classList.remove('affordable', 'maxed');
         btn.classList.add('locked');
         if (costSpan) costSpan.textContent = 'LOCKED';
+    } else if (isMaxed) {
+        btn.disabled = true;
+        btn.classList.remove('affordable', 'locked');
+        btn.classList.add('maxed');
+        if (costSpan) costSpan.textContent = 'MAX';
     } else {
-        btn.classList.remove('locked');
+        btn.classList.remove('locked', 'maxed');
         btn.disabled = game.money < cost;
         btn.classList.toggle('affordable', game.money >= cost);
         if (costSpan) costSpan.textContent = `$${cost}`;
@@ -2668,7 +2746,7 @@ document.getElementById('frostBtn').addEventListener('click', () => {
         AudioManager.playAbility();
         core.frostCharges--;
         core.frostActive = true;
-        core.frostTimer = ABILITY_DURATION + 2;
+        core.frostTimer = FROST_DURATION;
     }
 });
 
@@ -2685,20 +2763,51 @@ document.getElementById('nukeBtn').addEventListener('click', () => {
     if (core.nukeCharges > 0 && enemies.length > 0) {
         AudioManager.playAbility();
         core.nukeCharges--;
-        // Kill all enemies on screen
+        // Kill all regular enemies, deal 80% damage to mega bosses
+        const survivingEnemies = [];
         for (const enemy of [...enemies]) {
-            game.money += enemy.moneyReward;
-            game.killsThisRun++; // Track kills this run for scrap
-            SaveManager.addEnemyKilled();
-            explosions.push({
-                x: enemy.x,
-                y: enemy.y,
-                time: 0,
-                maxTime: 0.5
-            });
+            if (enemy.isMegaBoss) {
+                // Deal 80% max HP damage to mega bosses (they survive but weakened)
+                const nukeDamage = Math.floor(enemy.maxHP * 0.8);
+                enemy.hp -= nukeDamage;
+                // Show damage number
+                damageNumbers.push({
+                    x: enemy.x,
+                    y: enemy.y - 30,
+                    damage: nukeDamage,
+                    time: 0,
+                    isCrit: true
+                });
+                if (enemy.hp > 0) {
+                    survivingEnemies.push(enemy);
+                } else {
+                    // Boss died from nuke damage
+                    game.money += enemy.moneyReward;
+                    game.killsThisRun++;
+                    SaveManager.addEnemyKilled();
+                    enemy.onDeath();
+                    explosions.push({
+                        x: enemy.x,
+                        y: enemy.y,
+                        time: 0,
+                        maxTime: 0.5
+                    });
+                }
+            } else {
+                // Kill regular enemies instantly
+                game.money += enemy.moneyReward;
+                game.killsThisRun++; // Track kills this run for scrap
+                SaveManager.addEnemyKilled();
+                explosions.push({
+                    x: enemy.x,
+                    y: enemy.y,
+                    time: 0,
+                    maxTime: 0.5
+                });
+            }
         }
-        game.enemiesAlive = 0;
-        enemies = [];
+        enemies = survivingEnemies;
+        game.enemiesAlive = enemies.length;
         AudioManager.playExplosion();
     }
 });
@@ -2716,10 +2825,11 @@ document.getElementById('pulseBtn').addEventListener('click', () => {
 
 document.getElementById('damageBtn').addEventListener('click', () => {
     if (game.money >= game.damageCost) {
+        const config = UPGRADE_CONFIG.damage;
         AudioManager.playUpgrade();
         game.money -= game.damageCost;
-        core.damage += 10;
-        game.damageCost = Math.floor(game.damageCost * 1.4);
+        core.damage += config.perLevel;
+        game.damageCost = Math.floor(game.damageCost * config.costMultiplier);
         upgradeLevels.damage++;
         updateUpgradePanel();
     }
@@ -2727,69 +2837,80 @@ document.getElementById('damageBtn').addEventListener('click', () => {
 
 document.getElementById('fireRateBtn').addEventListener('click', () => {
     if (game.money >= game.fireRateCost) {
+        const config = UPGRADE_CONFIG.fireRate;
         AudioManager.playUpgrade();
         game.money -= game.fireRateCost;
-        core.fireRate += 0.5;
-        game.fireRateCost = Math.floor(game.fireRateCost * 1.5);
+        core.fireRate += config.perLevel;
+        game.fireRateCost = Math.floor(game.fireRateCost * config.costMultiplier);
         upgradeLevels.fireRate++;
         updateUpgradePanel();
     }
 });
 
 document.getElementById('rangeBtn').addEventListener('click', () => {
-    if (game.money >= game.rangeCost && core.attackRange < MAX_RANGE) {
+    const config = UPGRADE_CONFIG.range;
+    if (game.money >= game.rangeCost && core.attackRange < config.max) {
         AudioManager.playUpgrade();
         game.money -= game.rangeCost;
-        core.attackRange = Math.min(core.attackRange + 25, MAX_RANGE);
-        game.rangeCost = Math.floor(game.rangeCost * 1.4);
+        core.attackRange = Math.min(core.attackRange + config.perLevel, config.max);
+        game.rangeCost = Math.floor(game.rangeCost * config.costMultiplier);
         upgradeLevels.range++;
         updateUpgradePanel();
     }
 });
 
 document.getElementById('multishotBtn').addEventListener('click', () => {
-    if (game.money >= game.multishotCost && core.projectileCount < 5) {
+    const config = UPGRADE_CONFIG.multishot;
+    if (game.money >= game.multishotCost && core.projectileCount < config.max) {
         AudioManager.playUpgrade();
         game.money -= game.multishotCost;
-        core.projectileCount++;
-        game.multishotCost = Math.floor(game.multishotCost * 1.8);
+        core.projectileCount += config.perLevel;
+        game.multishotCost = Math.floor(game.multishotCost * config.costMultiplier);
         upgradeLevels.multishot++;
         updateUpgradePanel();
     }
 });
 
 document.getElementById('buyPierceBtn').addEventListener('click', () => {
-    if (game.money >= game.pierceCost) {
+    if (canBuyAbility('pierce')) {
+        const cost = getAbilityCost('pierce');
         AudioManager.playUpgrade();
-        game.money -= game.pierceCost;
+        game.money -= cost;
         core.pierceCharges++;
+        game.abilityPurchases.pierce++;
         updateUpgradePanel();
     }
 });
 
 document.getElementById('buyFrostBtn').addEventListener('click', () => {
-    if (game.money >= game.frostCost) {
+    if (canBuyAbility('frost')) {
+        const cost = getAbilityCost('frost');
         AudioManager.playUpgrade();
-        game.money -= game.frostCost;
+        game.money -= cost;
         core.frostCharges++;
+        game.abilityPurchases.frost++;
         updateUpgradePanel();
     }
 });
 
 document.getElementById('buyFuryBtn').addEventListener('click', () => {
-    if (game.money >= game.critCost) {
+    if (canBuyAbility('fury')) {
+        const cost = getAbilityCost('fury');
         AudioManager.playUpgrade();
-        game.money -= game.critCost;
+        game.money -= cost;
         core.critCharges++;
+        game.abilityPurchases.fury++;
         updateUpgradePanel();
     }
 });
 
 document.getElementById('buyNukeBtn').addEventListener('click', () => {
-    if (game.money >= game.nukeCost) {
+    if (canBuyAbility('nuke')) {
+        const cost = getAbilityCost('nuke');
         AudioManager.playUpgrade();
-        game.money -= game.nukeCost;
+        game.money -= cost;
         core.nukeCharges++;
+        game.abilityPurchases.nuke++;
         updateUpgradePanel();
     }
 });
@@ -2804,10 +2925,12 @@ document.getElementById('buyShieldBtn').addEventListener('click', () => {
 });
 
 document.getElementById('buyPulseBtn').addEventListener('click', () => {
-    if (game.money >= game.pulseCost) {
+    if (canBuyAbility('pulse')) {
+        const cost = getAbilityCost('pulse');
         AudioManager.playUpgrade();
-        game.money -= game.pulseCost;
+        game.money -= cost;
         core.pulseCharges++;
+        game.abilityPurchases.pulse++;
         updateUpgradePanel();
     }
 });
@@ -2941,16 +3064,20 @@ document.getElementById('classSelectStartBtn').addEventListener('click', () => {
     game.killsThisRun = 0;
     game.scrapEarned = 0;
 
-    game.damageCost = 50;
-    game.fireRateCost = 75;
-    game.rangeCost = 60;
-    game.multishotCost = 250;
-    game.pierceCost = 50;
-    game.frostCost = 40;
-    game.critCost = 60;
-    game.nukeCost = 500;
+    game.damageCost = UPGRADE_CONFIG.damage.baseCost;
+    game.fireRateCost = UPGRADE_CONFIG.fireRate.baseCost;
+    game.rangeCost = UPGRADE_CONFIG.range.baseCost;
+    game.multishotCost = UPGRADE_CONFIG.multishot.baseCost;
     game.shieldCost = 400;
-    game.pulseCost = 300;
+
+    // Reset ability purchase counters (for scaling costs)
+    game.abilityPurchases = {
+        frost: 0,
+        pierce: 0,
+        fury: 0,
+        pulse: 0,
+        nuke: 0
+    };
 
     // Reset upgrade levels
     upgradeLevels.damage = 1;
@@ -2999,7 +3126,7 @@ document.getElementById('classSelectStartBtn').addEventListener('click', () => {
     document.getElementById('speedBtn').textContent = '>';
     document.getElementById('pauseBtn').textContent = '||';
     document.getElementById('pauseBtn').classList.remove('paused');
-    document.getElementById('waveLabel').textContent = 'Wave 0';
+    document.getElementById('waveLabel').textContent = 'W::0';
     document.getElementById('waveLabel').classList.remove('boss', 'swarm');
 });
 
